@@ -174,8 +174,6 @@
       </div>
     </div>
 
-    <script id="test" src="./pitch-shift-processor.js" type="javascript/worker"></script>
-
     <script type="text/javascript">
       let playButton = document.getElementById("play-button");
       let restartButton = document.getElementById("restart-button");
@@ -902,7 +900,6 @@
           let stepAverage = 0;
           for (let i = 0; i < step; i++)
             stepAverage += Math.abs(samples[stepIndex * step + i]);
-            // stepAverage += samples[stepIndex * step + i];
           stepAverage /= step;
           groupedSamples[stepIndex] = stepAverage;
           if (stepAverage > maxGroupedSample)
@@ -1013,12 +1010,6 @@
 
           let stepHeight = Math.abs(groupedSamples[sampleGroup]) / maxGroupedSample * 900 * (1 + distanceFactor * 0.2) + 10;
           draw.fillRect(spacing * (i - offset), (waveform.height - stepHeight) / 2, scaledStepWidth, stepHeight);
-
-          // let stepHeight = Math.abs(groupedSamples[sampleGroup]) / maxGroupedSample * 450 * (1 + distanceFactor * 0.2) + 10;
-          // if (groupedSamples[sampleGroup] > 0)
-          // draw.fillRect(spacing * (i - offset), waveform.height / 2 - stepHeight, scaledStepWidth, stepHeight);
-          // else
-          //   draw.fillRect(spacing * (i - offset), waveform.height / 2, scaledStepWidth, stepHeight);
         }
 
         let timerLeft = currentTime / duration * steppedWaveformWidth - scroll;
