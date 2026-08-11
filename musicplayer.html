@@ -1,0 +1,1382 @@
+<html>
+  <style>
+    .show {
+      opacity: 1;
+      transition-property: opacity;
+      transition-duration: 0.05s
+    }
+
+    .hide {
+      opacity: 0;
+      transition-property: opacity;
+      transition-duration: 0.5s
+    }
+
+    .popup-button {
+      background-color: transparent;
+      border-radius: 0;
+      color: hsl(300, 20%, 15%);
+    }
+
+    .popup-button:hover {
+      background-color: hsl(300 10% 50%)
+    }
+
+    button {
+      font-family: Menlo, monospace;
+      border: none;
+      border-radius: 3px;
+      background-color: hsl(300, 25%, 35%);
+      color: hsl(300, 20%, 85%);
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: hsl(300, 25%, 45%);
+    }
+
+    button:disabled {
+      background-color: hsl(300, 20%, 25%);
+      color: hsl(300, 20%, 35%);
+      cursor: default;
+    }
+
+    input:focus {
+      outline: none;
+    }
+
+    textarea:focus {
+      outline: none
+    }
+
+    input[type="checkbox"] {
+      cursor: pointer;
+    }
+
+    input[type="range"] {
+      cursor: ew-resize;
+    }
+  </style>
+  <body style="font-family: Menlo, monospace; font-size: 11pt; color: hsl(270, 20%, 85%); background-color: hsl(270, 20%, 16%)">
+    <div style="display: flex; height: 100%">
+      <div style="flex: 3; min-width: 0">
+        <input id=file-input type=file accept="audio/*"/>
+        <br/>
+        
+        <div style="position: relative; overflow: hidden; border: solid; border-radius: 20px; border-color: hsl(270, 20%, 35%); background-color: hsl(270, 20%, 23%); border-width: 1px">
+          <!-- relative position on inner div makes everything inside scroll with it instead of outer div -->
+          <div style="position: relative; width: 100%; height: 200px; overflow-x: clip; scrollbar-width: none;">
+            <canvas id=waveform width=6000 height=1000 style="position: relative; left: 0; width: 4000px; height: 100%; overflow-x: hidden;"></canvas>
+            <p id=timer style="position: absolute; bottom: 0; transform: translate(5px)">
+              <span id="timer-decimal" style="color: gray"></span>
+            </p>
+            <p id=cursor-time style="position: absolute; top: 0; transform: translateX(5px)">
+              <span id=cursor-time-decimal style="color: gray"></span>
+            </p>
+          </div>
+          <div id=waveform-scrollbar class=hide style="position: absolute; bottom: 0; height: 5px; background-color: rgb(255 255 255 / 35%)"></div>
+          <div id=playhead-marker class=hide style="position: absolute; bottom: 0; width: 5px; height: 5px"></div>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; position: relative; width: 100%; margin: 10px 0 10px 0">
+          <button id=play-button disabled=true style="margin-right: 10px; height: 25px;">Play</button>
+          <button id=restart-button disabled=true style="margin-right: 10px; height: 25px;">Restart</button>
+
+          <div style="display: flex; margin: 5px">
+            <div style="display: inline-block">
+              <input id=loop type=checkbox>
+              <label for=loop style="position: relative; left: -3px; top: -1px; margin-right: 15px">Loop</label>
+            </div>
+
+            <div style="display: inline-block">
+              <input id=follow-playhead type=checkbox>
+              <label for=follow-playhead style="position: relative; left: -3px; top: -1px; margin-right: 15px">Follow Playhead</label>
+            </div>
+          </div>
+
+          <div style="flex-grow: 1; display: flex; flex-wrap: wrap">
+            <div>
+              <label id=gain-label for=gain style="display: block"> Volume: 100% </label>
+              <input id=gain type=range min=0 max=2 step=0.01 value=1 style="margin-right: 10px; accent-color: hsl(262, 63%, 68%)">
+            </div>
+
+            <div>
+              <label id=speed-label for=speed style="display: block"> Speed: 100% </label>
+              <input id=speed type=range min=0.1 max=5 step=0.01 value=1 style="margin-right: 10px; accent-color: hsl(262, 63%, 68%)">
+            </div>
+
+            <div>
+              <label id=pitch-label for=pitch style="display: block"> Pitch: 100% </label>
+              <input id=pitch type=range min=0 max=2 step=0.01 value=1 style="margin-right: 10px; accent-color: hsl(262, 63%, 68%)">
+            </div>
+
+            <div>
+              <label id=step-width-label for=step-width style="display: block"> Step Width: 2 </label>  
+              <input id=step-width type=range min=1 max=20 value=2 style="margin-right: 10px; accent-color: hsl(262, 63%, 68%)">
+            </div>
+
+            <div style="flex-grow: 1; display: flex; flex-direction: column; max-width: 100px">
+              Transpose:
+              <div style="display: flex; gap: 5px">
+                <button id=up-half-step style="height: 20px; flex-grow: 1"> +1/2 </button>
+                <button id=down-half-step style="height: 20px; flex-grow: 1"> -1/2 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="position: relative; overflow: hidden; border: solid; border-radius: 20px; border-color: hsl(270, 20%, 35%); background-color: hsl(270, 20%, 23%); border-width: 1px; margin-bottom: 10px">
+          <!-- actually stores log2(numBins) -->
+          <div style="position: absolute; top: 12px; right: 180px; z-index: 999">
+            <label id=num-bins-label for=num-bins style="display: block"> # Frequency Bins: 256 </label>
+            <input id=num-bins type=range min=4 max=14 value=8 style="width: 100%; accent-color: hsl(262, 63%, 68%)">
+          </div>
+
+          <div style="position: absolute; top: 12px; right: 15px; z-index: 999">
+            <label id=smoothing-label for=num-bins style="display: block"> Smoothing: 0.00 </label>
+            <input id=smoothing type=range min=0 max=1 step=0.01 value=0 style="width: 100%; accent-color: hsl(262, 63%, 68%)">
+          </div>
+          
+          <canvas id=bins width=2000 height=1000 style="position: relative; width: 100%; height: 200px"></canvas>
+          <p id=frequency-popup style="position: absolute; top: 50px; transform: translateX(-50%); text-wrap: nowrap;"></p>
+        </div>
+
+        <div style="margin: 10px; width: 100%">
+          <div id=lyrics style="position: relative; margin-bottom: 20px; overflow-x: scroll; width: 100%; height: 100px; scroll-behavior: smooth;"></div>
+          <div id="lyric-progress-bar" style="visibility: hidden; height: 2px; width: 0; background-color: hsl(270 20% 85% / 50%); border-right: solid; border-color: hsl(270 20% 85%);"></div>
+          <input id=new-lyric type=text style="background-color: hsl(270 20% 13%); border: none; width: 300px; height: 30px; font-family: Menlo, monospace; padding: 5px; color: hsl(270, 20%, 85%)">
+          
+          <div style="display: inline-block">
+            <button id="save-lyrics" style="padding: 3px">Save</button>
+
+            <input id=import-lyrics type=file style="display: none;">
+            <button onclick="let l=document.getElementById('import-lyrics'); l.value = null; l.click()" style="padding: 3px">Import Lyrics</button>
+
+            <button id=export-lyrics style="padding: 3px">Export Lyrics</button>
+
+            <button id=clear-lyrics style="padding: 3px">Clear All</button>
+
+            <button id=sync-scroll style="padding: 3px" disabled=true>Re-sync Scroll</button>
+          </div>
+        </div>
+      </div>
+
+      <div id=queue style="flex: 1; display: flex; flex-direction: column; min-width: 0; overflow-y: scroll; margin: 20px 0 0 16px; padding: 10px; border: solid; border-radius: 20px; border-color: hsl(270, 20%, 35%); background-color: hsl(270, 20%, 23%); border-width: 1px">
+        <div style="display: flex; align-items: center; gap: 8px">
+          <span style="margin: 0; text-wrap: nowrap">All Songs</span>
+          <input id="search-song" type=text placeholder="Search song name" style="flex: 1; background-color: hsl(270 20% 16%); border: none; border-radius: 3px; height: 22px; font-family: Menlo, monospace; font-size: 11px; padding: 0 8px 0 8px; color: hsl(270, 20%, 85%)">
+        </div>
+
+        <div id=all-songs style="display: flex; flex-direction: column">
+
+        </div>
+
+      </div>
+    </div>
+
+    <script id="test" src="./pitch-shift-processor.js" type="javascript/worker"></script>
+
+    <script type="text/javascript">
+      let playButton = document.getElementById("play-button");
+      let restartButton = document.getElementById("restart-button");
+      let waveform = document.getElementById("waveform");
+      let waveformScrollbar = document.getElementById("waveform-scrollbar");
+      let playheadMarker = document.getElementById("playhead-marker");
+      let timer = document.getElementById("timer");
+      let decimalTimer = document.getElementById("timer-decimal");
+      let cursorTime = document.getElementById("cursor-time");
+      let cursorDecimalTime = document.getElementById("cursor-time-decimal");
+      let frequencyPopup = document.getElementById("frequency-popup");
+      let stepWidthLabel = document.getElementById("step-width-label");
+      let numBinsLabel = document.getElementById("num-bins-label");
+      let gainLabel = document.getElementById("gain-label");
+      let speedLabel = document.getElementById("speed-label");
+      let followPlayheadToggle = document.getElementById("follow-playhead");
+      let lyricsContainer = document.getElementById("lyrics");
+      let newLyricInput = document.getElementById("new-lyric");
+      let lyricProgressBar = document.getElementById("lyric-progress-bar");
+      let queue = document.getElementById("queue");
+      let allSongsContainer = document.getElementById("all-songs");
+      let allSongs = [];
+
+      let mouseX = 0;
+      let mouseY = 0;
+
+      let fileName = null;
+      let stepWidth = 2;
+      let scroll = 0;
+      let idealWaveformWidth = 4000;
+      let steppedWaveformWidth = idealWaveformWidth;
+      let zoom = 1;
+      let newZoom = 1;
+      let lastScrollTime;
+      let step = null;
+      let didStartPlaying = false;
+      let durationPaused = 0;
+      let pausedStartTimestamp = null;
+      let leftSamples = null;
+      let rightSamples = null;
+      let samples = null;
+      let maxGroupedSample = null;
+      let groupedSamples = null;
+      let bufferSource = null;
+
+      let isLooping = false;
+      let volume = 1;
+      let currentTime = 0;
+
+      let numBins = 256;
+      let smoothing = 0;
+
+      let audioContext = new AudioContext();
+      
+      let pitch = 1;
+      let playbackRate = 1;
+      let pitchScale = 1;
+
+      let windowSize = 1024;
+      let hopSize = windowSize / 4;
+      let numAnalysisWindowsPerFrame = Math.ceil(windowSize / hopSize);
+      let numSynthesisWindowsPerFrame = Math.ceil(numAnalysisWindowsPerFrame * pitchScale);
+      let numFrequencies = Math.floor(windowSize / 2) + 1;
+      let inputSampleIndex = 0;
+      let outputSampleIndex = 0;
+
+      let shiftedLeft = null;
+      let shiftedRight = null;
+
+      let previousLeftAnalysisPhases = new Float32Array(numFrequencies);
+      previousLeftAnalysisPhases.fill(0);
+      let previousLeftSynthesisPhases = new Float32Array(numFrequencies);
+      previousLeftSynthesisPhases.fill(0);
+
+      let previousRightAnalysisPhases = new Float32Array(numFrequencies);
+      previousRightAnalysisPhases.fill(0);
+      let previousRightSynthesisPhases = new Float32Array(numFrequencies);
+      previousRightSynthesisPhases.fill(0);
+
+      let pitchShifter = audioContext.createScriptProcessor(windowSize, 2, 2);
+      pitchShifter.addEventListener("audioprocess", event => {
+        if (!bufferSource)
+          return;
+        if (!didStartPlaying || pausedStartTimestamp != null)
+          return;
+        let shiftedLength = Math.ceil(samples.length / playbackRate);
+        if (shiftedLeft == null || shiftedLength > shiftedLeft.length) {
+          shiftedLeft = new Float32Array(shiftedLength);
+          shiftedLeft.fill(0);
+          shiftedRight = new Float32Array(shiftedLength);
+          shiftedRight.fill(0);
+        }
+        let output = event.outputBuffer;
+        let inputWindowSize = Math.ceil(windowSize * playbackRate);
+        let inputHopSize = Math.round(hopSize * playbackRate);
+
+        for (let offset = 0; offset < 4; offset++) {
+          let inputWindowStart = inputSampleIndex + offset * inputHopSize;
+          let outputWindowStart = outputSampleIndex + offset * hopSize;
+
+          let window = resample(leftSamples, inputWindowStart, inputWindowSize, windowSize);
+          hannWindowInPlace(window);
+          window = pitchShiftWindow(window, pitchScale, hopSize, previousLeftAnalysisPhases, previousLeftSynthesisPhases);
+          hannWindowInPlace(window);
+          for (let i = 0; i < windowSize; i++)
+            shiftedLeft[outputWindowStart + i] += window[i];
+
+          if (rightSamples) {
+            window = resample(rightSamples, inputWindowStart, inputWindowSize, windowSize);
+            hannWindowInPlace(window);
+            window = pitchShiftWindow(window, pitchScale, hopSize, previousRightAnalysisPhases, previousRightSynthesisPhases);
+            hannWindowInPlace(window);
+            for (let i = 0; i < windowSize; i++)
+              shiftedRight[outputWindowStart + i] += window[i];
+          }
+        }
+        let newLeft = shiftedLeft.slice(outputSampleIndex, outputSampleIndex + windowSize);
+        output.copyToChannel(newLeft, 0);
+        if (rightSamples)
+          output.copyToChannel(shiftedRight.slice(outputSampleIndex, outputSampleIndex + windowSize), 1);
+        else
+          output.copyToChannel(newLeft, 1);
+  
+        inputSampleIndex += inputWindowSize;
+        outputSampleIndex += windowSize;
+      });
+
+      let analyzer = audioContext.createAnalyser();
+      let gain = audioContext.createGain();
+      analyzer.fftSize = numBins * 2;
+      gain.gain.value = 0.1;
+
+      pitchShifter.connect(analyzer);
+      analyzer.connect(gain);
+      gain.connect(audioContext.destination);
+
+      let lyrics = [];
+      let isSyncingLyrics = true;
+
+      let databaseRequest = window.indexedDB.open("SongPlayer");
+      let database = null;
+      
+      function readSongs() {
+        return database.transaction(["songs"], "readonly").objectStore("songs");
+      }
+
+      function readWriteSongs() {
+        return database.transaction(["songs"], "readwrite").objectStore("songs");
+      }
+
+      databaseRequest.onsuccess = event => {
+        database = event.target.result;
+
+        let songs = readSongs();
+        let allSongs = songs.getAll();
+        allSongs.onsuccess = () => {
+          for (let song of allSongs.result)
+            addNewSong(song.name);
+        }
+      };
+
+      databaseRequest.onupgradeneeded = event => {
+        database = event.target.result;
+        objectStore = database.createObjectStore("songs", { keyPath: "name" });
+      };
+
+      function resample(samples, startIndex, originalLength, newLength) {
+        let resampled = new Float32Array(newLength);
+        let scale = originalLength / newLength;
+        for (let i = 0; i < newLength; i++) {
+          let scaledIndex = startIndex + i * scale;
+          if (scaledIndex > samples.length - 1) {
+            resampled[i] = 0;
+            continue;
+          }
+          let left = samples[Math.floor(scaledIndex)];
+          let right = samples[Math.ceil(scaledIndex)];
+          let t = scaledIndex % 1;
+          resampled[i] = left * (1 - t) + right * t;
+        }
+        return resampled;
+      }
+
+      function hannWindowInPlace(samples) {
+        let f = Math.PI / samples.length;
+        for (let i = 0; i < samples.length; i++) {
+          let sin = Math.sin(f * i);
+          samples[i] *= sin * sin;
+        }
+      }
+
+      function modulo(x, mod) {
+        if (x < 0) {
+          x = x % mod + mod;
+          return x == mod ? 0 : x;
+        }
+        return x % mod;
+      }
+
+      function getPolarCoordinates(reals, imaginaries) {
+        let length = reals.length;
+        let magnitudes = new Float32Array(length);
+        let phases = new Float32Array(length);
+        for (let i = 0; i < length; i++) {
+          real = reals[i];
+          imaginary = imaginaries[i];
+          magnitudes[i] = Math.sqrt(real * real + imaginary * imaginary);
+          phases[i] = Math.atan2(imaginary, real);
+        }
+        return [magnitudes, phases];
+      }
+
+      function getLeft(element) {
+        return element.offsetLeft + (element.offsetParent ? getLeft(element.offsetParent) : 0);
+      }
+
+      function getRight(element) {
+        return getLeft(element) + element.scrollWidth;
+      }
+
+      function getTop(element) {
+        return element.offsetTop + (element.offsetParent ? getTop(element.offsetParent) : 0);
+      }
+
+      function getBottom(element) {
+        return getTop(element) + element.scrollHeight;
+      }
+
+      function getRect(element) {
+        let left = getLeft(element);
+        let top = getTop(element);
+        return {
+          left: left, 
+          top: top, 
+          right: left + element.scrollWidth, 
+          bottom: top + element.scrollHeight,
+          width: element.scrollWidth,
+          height: element.scrollHeight
+        };
+      }
+
+      function pitchShiftWindow(samples, pitchScale, hopSize, previousAnalysisPhases, previousSynthesisPhases) {
+        let numBins = samples.length / 2 + 1;
+        let synthesisMagnitudes = new Float32Array(numBins);
+        let synthesisBins = new Float32Array(numBins);
+        synthesisMagnitudes.fill(0);
+        synthesisBins.fill(0);
+        
+        let [reals, imaginaries] = fastDftRectUnnormalized(samples);
+        let [magnitudes, phases] = getPolarCoordinates(reals, imaginaries);
+        
+        for (let bin = 0; bin < numBins; bin++) {
+          let shiftedBin = Math.round(bin * pitchScale);
+          if (shiftedBin >= numBins)
+            continue;
+
+          let magnitude = magnitudes[bin];
+          let phase = phases[bin];
+
+          let phaseDifference = phase - previousAnalysisPhases[bin];
+          previousAnalysisPhases[bin] = phase;
+          let binFrequency = 2 * Math.PI * bin / samples.length;
+          phaseDifference -= binFrequency * hopSize;
+          phaseDifference = modulo(phaseDifference + Math.PI, 2 * Math.PI) - Math.PI;
+          let binDeviation = phaseDifference * samples.length / hopSize / (2 * Math.PI);
+          
+          synthesisMagnitudes[shiftedBin] += magnitude;
+          synthesisBins[shiftedBin] = (bin + binDeviation) * pitchScale;
+        }
+
+        let synthesisReals = new Float32Array(samples.length);
+        let synthesisImaginaries = new Float32Array(samples.length);
+
+        for (let bin = 0; bin < numBins; bin++) {
+          let magnitude = synthesisMagnitudes[bin];
+          let binDeviation = synthesisBins[bin] - bin;
+          let phaseDifference = binDeviation * 2 * Math.PI * hopSize / samples.length;
+          let binCenterFrequency = 2 * Math.PI * bin / samples.length;
+          phaseDifference += binCenterFrequency * hopSize;
+          let phase = previousSynthesisPhases[bin] + phaseDifference;
+          phase = modulo(phase + Math.PI, 2 * Math.PI) - Math.PI;
+          previousSynthesisPhases[bin] = phase;
+          
+          let real = magnitude * Math.cos(phase);
+          let imaginary = magnitude * Math.sin(phase);
+
+          synthesisReals[bin] = real;
+          synthesisImaginaries[bin] = imaginary;
+
+          if (bin > 0 && bin < numBins - 1) {
+            synthesisReals[windowSize - bin] = real;
+            synthesisImaginaries[windowSize - bin] = -imaginary;
+          }
+        }
+        return inverseFastDftNormalized(synthesisReals, synthesisImaginaries);
+      }
+
+      function fastDftRectUnnormalized(samples) {
+        if (samples.length == 1)
+          return [[samples[0]], [0]];
+
+        let evens = new Float32Array(samples.length / 2);
+        let odds = new Float32Array(samples.length / 2);
+        for (let i = 0; i < samples.length; i++) {
+          if (i % 2 == 0)
+            evens[i / 2] = samples[i];
+          else
+            odds[(i - 1) / 2] = samples[i];
+        }
+        evens = fastDftRectUnnormalized(evens);
+        odds = fastDftRectUnnormalized(odds);
+        
+        for (let i = 0; i < samples.length / 2; i++) {
+          let pReal = evens[0][i];
+          let pImaginary = evens[1][i];
+          let qReal = odds[0][i];
+          let qImaginary = odds[1][i];
+          let twiddleAngle = i / samples.length * -2 * Math.PI;
+          let rotatedQReal = qReal * Math.cos(twiddleAngle) - qImaginary * Math.sin(twiddleAngle);
+          let rotatedQImaginary = qReal * Math.sin(twiddleAngle) + qImaginary * Math.cos(twiddleAngle);
+          
+          evens[0][i] = pReal + rotatedQReal;
+          evens[1][i] = pImaginary + rotatedQImaginary;
+          odds[0][i] = pReal - rotatedQReal;
+          odds[1][i] = pImaginary - rotatedQImaginary;
+        }
+        return [evens[0].concat(odds[0]), evens[1].concat(odds[1])];
+      }
+
+      function fastDft(samples) {
+        let [reals, imaginaries] = fastDftRectUnnormalized(samples);
+        let numFrequencies = samples.length / 2; // last frequency omitted since this is just used for visuals and powers of 2 are nice
+        let magnitudes = new Float32Array(numFrequencies);
+        let phases = new Float32Array(numFrequencies);
+        for (let i = 0; i < numFrequencies; i++) {
+          real = reals[i];
+          imaginary = imaginaries[i];
+          magnitudes[i] = Math.sqrt(real * real + imaginary * imaginary) / samples.length;
+          if (i > 0)
+            magnitudes[i] *= 2;
+          phases[i] = Math.atan2(imaginary, real);
+        }
+        return [magnitudes, phases];
+      }
+
+      function inverseFastDftNormalized(reals, imaginaries) {
+        function helper(reals, imaginaries) {
+          if (reals.length == 1)
+            return [reals, imaginaries];
+
+          let evensReals = new Float32Array(reals.length / 2);
+          let evensImaginaries = new Float32Array(reals.length / 2);
+          let oddsReals = new Float32Array(reals.length / 2);
+          let oddsImaginaries = new Float32Array(reals.length / 2);
+          for (let i = 0; i < reals.length; i++) {
+            if (i % 2 == 0) {
+              evensReals[i / 2] = reals[i];
+              evensImaginaries[i / 2] = imaginaries[i];
+            } else {
+              oddsReals[(i - 1) / 2] = reals[i];
+              oddsImaginaries[(i - 1) / 2] = imaginaries[i];
+            }
+          }
+          [evensReals, evensImaginaries] = helper(evensReals, evensImaginaries);
+          [oddsReals, oddsImaginaries] = helper(oddsReals, oddsImaginaries);
+          
+          for (let i = 0; i < reals.length / 2; i++) {
+            let pReal = evensReals[i];
+            let pImaginary = evensImaginaries[i];
+            let qReal = oddsReals[i];
+            let qImaginary = oddsImaginaries[i];
+            let twiddleAngle = i / reals.length * 2 * Math.PI;
+            let rotatedQReal = qReal * Math.cos(twiddleAngle) - qImaginary * Math.sin(twiddleAngle);
+            let rotatedQImaginary = qReal * Math.sin(twiddleAngle) + qImaginary * Math.cos(twiddleAngle);
+            
+            evensReals[i] = pReal + rotatedQReal;
+            evensImaginaries[i] = pImaginary + rotatedQImaginary;
+            oddsReals[i] = pReal - rotatedQReal;
+            oddsImaginaries[i] = pImaginary - rotatedQImaginary;
+          }
+          reals = new Float32Array(reals.length);
+          imaginaries = new Float32Array(reals.length);
+          reals.set(evensReals, 0);
+          reals.set(oddsReals, reals.length / 2);
+          imaginaries.set(evensImaginaries, 0);
+          imaginaries.set(oddsImaginaries, reals.length / 2);
+          return [reals, imaginaries];
+        }
+
+        let newSamples = helper(reals, imaginaries)[0];
+        for (let i = 0; i < newSamples.length; i++)
+          newSamples[i] /= newSamples.length * 2;
+
+        return newSamples;
+      }
+
+      function handleFileInput(file) {
+        let reader = new FileReader();
+        reader.readAsArrayBuffer(file);
+        reader.onload = () => {
+          let data = reader.result.slice(0);
+          loadSong(reader.result, file.name);
+
+          let songs = readWriteSongs();
+          let cursor = songs.openCursor(file.name);
+          cursor.onsuccess = event => {
+            if (!event.target.result)
+              addNewSong(file.name);
+            songs.put({name: file.name, data: data});
+          };
+        };
+      }
+
+      async function loadSong(data, name) {
+        let audioBuffer = await audioContext.decodeAudioData(data);
+
+        playButton.disabled = false;
+        restartButton.disabled = false;
+        fileName = name;
+        document.title = name;
+
+        if (didStartPlaying && pausedStartTimestamp == null)
+          resetPlay();
+
+        scroll = 0;
+        lastTime = 0;
+        pausedStartTimestamp = null;
+        bufferSource = audioContext.createBufferSource();
+        bufferSource.buffer = audioBuffer;
+        bufferSource.connect(pitchShifter);
+
+        leftSamples = audioBuffer.getChannelData(0);
+        bufferSource.buffer.copyToChannel(leftSamples, 0);
+
+        if (audioBuffer.numberOfChannels > 1) {
+          rightSamples = audioBuffer.getChannelData(1);
+          bufferSource.buffer.copyToChannel(rightSamples, 1);
+          samples = leftSamples.map((v, i) => v + rightSamples[i]);
+        } else {
+          rightSamples = null;
+          samples = leftSamples;
+        }
+
+        calculateGroupedSamples();
+      }
+
+      function showSong(name) {
+        let container = document.createElement("button");
+        container.style.display = "flex";
+        container.style.overflow = "clip";
+        container.style.borderRadius = "0";
+        container.style.alignItems = "center";
+        container.style.gap = "5px";
+
+        let title = document.createElement("textarea");
+        title.readOnly = true;
+        title.value = name;
+        title.oldValue = name;
+        title.rows = 1;
+        title.style.resize = "none";
+        title.style.cursor = "pointer";
+        title.style.backgroundColor = "transparent";
+        title.style.border = "none";
+        title.style.fontFamily = "Menlo, monospace";
+        title.style.color = "hsl(270 20% 85%)"
+        title.style.alignContent = "start";
+        title.style.margin = "0";
+        title.style.textOverflow = "ellipsis";
+        title.style.overflow = "hidden";
+        title.style.whiteSpace = "nowrap";
+        title.style.flex = "1";
+        title.style.textAlign = "start";
+        title.addEventListener("keydown", event => {
+          if (event.key === "Enter" || event.keyCode === 13) {
+            event.preventDefault();
+            allSongs[allSongs.indexOf(title.oldValue)] = title.value;
+            let songs = readWriteSongs();
+            let songGetRequest = songs.get(title.oldValue);
+            songGetRequest.onsuccess = () => {
+              songs.delete(title.oldValue);
+              let song = songGetRequest.result;
+              song.name = title.value;
+              songs.put(song);
+              title.oldValue = title.value;
+            };
+            title.blur();
+          }
+        });
+        title.addEventListener("focusout", event => title.readOnly = true);
+        
+        container.appendChild(title);
+        container.oncontextmenu = event => {
+          event.preventDefault();
+          
+          let menu = document.createElement("div");
+          menu.style.display = "flex";
+          menu.style.flexDirection = "column";
+          menu.style.backdropFilter = "blur(32px) saturate(35%) brightness(180%)";
+          menu.style.boxShadow = "0 0 10px rgb(0 0 0 / 25%)"
+          menu.style.border = "1px solid hsl(300 15% 100% / 20%)"
+          menu.style.borderRadius = "5px";
+          menu.style.overflow = "clip";
+          menu.style.maxWidth = "250px";
+
+          let songName = document.createElement("p");
+          songName.textContent = name;
+          songName.style.textWrap = "nowrap";
+          songName.style.textOverflow = "ellipsis";
+          songName.style.overflow = "hidden";
+          songName.style.margin = "0 4px 0 4px";
+          songName.style.color = "rgb(80 80 80)";
+          songName.style.fontSize = "12px";
+          menu.appendChild(songName);
+
+          let renameButton = document.createElement("button");
+          renameButton.textContent = "Rename";
+          renameButton.classList.add("popup-button");
+          renameButton.onclick = event => {
+            title.readOnly = false;
+            menu.onblur = null;
+            menu.remove();
+            title.focus();
+          }
+          menu.appendChild(renameButton);
+
+          let deleteButton = document.createElement("button");
+          deleteButton.classList.add("popup-button");
+          deleteButton.textContent = "Delete";
+          deleteButton.style.color = "red";
+          deleteButton.onclick = event => {
+            allSongs.splice(allSongs.indexOf(title.value));
+            readWriteSongs().delete(title.value);
+            container.remove();
+            menu.onblur = null;
+            menu.remove();
+          }
+          menu.appendChild(deleteButton);
+
+          menu.style.position = "absolute";
+          menu.style.top = mouseY + 5;
+
+          document.body.appendChild(menu);
+          menu.style.left = Math.min(mouseX, document.body.clientWidth - menu.scrollWidth - 5);
+          menu.focus();
+          menu.onblur = event => menu.remove();
+        }
+        container.onclick = event => {
+          if (event.pointerId == -1)
+            return;
+          let songs = readSongs();
+          let songRequest = songs.get(name);
+          songRequest.onsuccess = async () => {
+            container.disabled = true;
+
+            if (queue.previousPlaying) {
+              queue.previousPlaying.parentElement.disabled = false;
+              queue.previousPlaying.nextElementSibling?.remove();
+              queue.previousPlaying.remove();
+            }
+            
+            let nowPlaying = document.createElement("span");
+            nowPlaying.textContent = "♫";
+            nowPlaying.style.fontSize = "13px";
+            nowPlaying.style.fontWeight = "bold";
+            nowPlaying.style.fontFamily = "sans-serif";
+
+            container.appendChild(nowPlaying);
+            queue.previousPlaying = nowPlaying;
+
+            lyricsContainer.replaceChildren();
+            lyrics = songRequest.result.lyrics ?? [];
+            lyrics.forEach(line => lyricsContainer.appendChild(createLyricLine(line.text)));
+            
+            if (lyrics.length > 0) {
+              let lyricsIcon = document.createElement("span");
+              lyricsIcon.textContent = "☴";
+              lyricsIcon.style.fontSize = "18px";
+              lyricsIcon.style.transform = "translateY(-0.5px)";
+              container.appendChild(lyricsIcon);
+            }
+
+            await loadSong(songRequest.result.data, name);
+            startPlaying();
+          };
+        };
+
+        if (document.title == name) {
+          container.disabled = true;
+          let nowPlaying = document.createElement("span");
+          nowPlaying.textContent = "♫";
+          nowPlaying.style.fontSize = "13px";
+          nowPlaying.style.fontWeight = "bold";
+          nowPlaying.style.fontFamily = "sans-serif";
+          container.appendChild(nowPlaying);
+          queue.previousPlaying = nowPlaying;
+
+          if (lyrics.length > 0) {
+            let lyricsIcon = document.createElement("span");
+            lyricsIcon.textContent = "☴";
+            lyricsIcon.style.fontSize = "18px";
+            lyricsIcon.style.transform = "translateY(-0.5px)";
+            container.appendChild(lyricsIcon);
+          }
+        }
+
+        allSongsContainer.appendChild(container);
+      }
+
+      function addNewSong(name) {
+        allSongs.push({name: name, hasLyrics: false});
+        showSong(name);
+      }
+
+      function startPlaying(time = 0) {
+        currentTime = time;
+        let sampleIndex = time / bufferSource.buffer.duration * samples.length;
+        inputSampleIndex = Math.floor(sampleIndex);
+        outputSampleIndex = Math.floor(sampleIndex / playbackRate);
+        if (shiftedLeft) {
+          shiftedLeft.fill(0);
+          shiftedRight.fill(0);
+        }
+        lastTime = audioContext.currentTime;
+        didStartPlaying = true;
+        durationPaused = audioContext.currentTime - time;
+        bufferSource.start(0, time);
+        playButton.textContent = "Pause";
+      }
+
+      function resetPlay() {
+        currentTime = 0;
+        inputSampleIndex = 0;
+        outputSampleIndex = 0;
+        shiftedLeft = null;
+        shiftedRight = null;
+        didStartPlaying = false;
+        pausedStartTimestamp = null;
+        bufferSource.stop();
+        bufferSource.disconnect();
+        let newBufferSource = audioContext.createBufferSource();
+        newBufferSource.buffer = bufferSource.buffer;
+        bufferSource = newBufferSource;
+        bufferSource.connect(pitchShifter);
+        playButton.textContent = "Play";
+      }
+
+      function handlePlayClick() {
+        if (!bufferSource)
+          return;
+        if (!didStartPlaying)
+          startPlaying();
+        else if (pausedStartTimestamp == null) {
+          pausedStartTimestamp = currentTime;
+          bufferSource.stop();
+          bufferSource.disconnect();
+          let newBufferSource = audioContext.createBufferSource();
+          newBufferSource.buffer = bufferSource.buffer;
+          newBufferSource.loop = isLooping;
+          newBufferSource.loopEnd = newBufferSource.buffer.duration;
+          bufferSource = newBufferSource;
+          bufferSource.connect(pitchShifter);
+          playButton.textContent = "Resume";
+        } else {
+          bufferSource.start(0, pausedStartTimestamp);
+          lastTime = audioContext.currentTime;
+          pausedStartTimestamp = null;
+          playButton.textContent = "Pause";
+        }
+      }
+
+      function updateScroll(amount) {
+        scroll = Math.max(0, amount ?? scroll);
+        scroll = Math.min(steppedWaveformWidth - waveform.parentElement.clientWidth, scroll);
+      }
+
+      function handleWindowResize() {
+        if (samples) {
+          zoom = Math.max(zoom, waveform.parentElement.clientWidth / 4000);
+          idealWaveformWidth = 4000 * zoom;
+          waveform.width = 6000;
+          updateScroll();
+        }
+      }
+
+      let skipTime = null;
+      function handleMouseDown(event) {
+        if (!bufferSource)
+          return;
+        let relativeMouseX = mouseX - getLeft(waveform);
+        let duration = bufferSource.buffer.duration;
+        skipTime = (relativeMouseX + scroll) / steppedWaveformWidth * duration;
+        skipTime = Math.max(0, Math.min(skipTime, duration));
+      }
+
+      function handleMouseUp(event) {
+        if (skipTime == null)
+          return;
+        if (didStartPlaying && pausedStartTimestamp == null)
+          resetPlay();
+        pausedStartTimestamp = null;
+        startPlaying(skipTime);
+        skipTime = null;
+      }
+
+      function handleGesture(event) {
+        lastScrollTime = Date.now();
+        event.preventDefault();
+        event.stopPropagation();
+        if (!event.ctrlKey) {
+          scroll += event.deltaX;
+          updateScroll(); 
+        } else
+          newZoom += newZoom * -event.deltaY * 0.01;
+      }
+
+      function calculateGroupedSamples() {
+        let spacing = stepWidth * 1.2 + 0.5;
+        step = Math.floor(spacing / idealWaveformWidth * samples.length);
+        step = Math.max(step, 1);
+        let numSteps = Math.ceil(samples.length / step);
+        groupedSamples = new Array(numSteps);
+        maxGroupedSample = -Infinity;
+        for (let stepIndex = 0; stepIndex < numSteps; stepIndex++) {
+          let stepAverage = 0;
+          for (let i = 0; i < step; i++)
+            stepAverage += Math.abs(samples[stepIndex * step + i]);
+            // stepAverage += samples[stepIndex * step + i];
+          stepAverage /= step;
+          groupedSamples[stepIndex] = stepAverage;
+          if (stepAverage > maxGroupedSample)
+            maxGroupedSample = stepAverage;
+        }
+        steppedWaveformWidth = spacing * Math.ceil(samples.length / step);
+      }
+
+      let lastTime = null;
+      let zoomUpdateCounter = 0;
+      function animateWaveform() {
+        if (newZoom != zoom) {
+          zoomUpdateCounter++;
+          if (zoomUpdateCounter > 2) {
+            zoomUpdateCounter = 0;
+            newZoom = Math.max(newZoom, waveform.parentElement.clientWidth / 4000);
+            zoom = newZoom;
+
+            let oldZoomPosition = mouseX - getLeft(waveform) + scroll;
+            let zoomProportion = oldZoomPosition / steppedWaveformWidth;
+
+            idealWaveformWidth = 4000 * zoom;
+            calculateGroupedSamples();
+
+            let newZoomPosition = zoomProportion * steppedWaveformWidth;
+            scroll += newZoomPosition - oldZoomPosition;
+            updateScroll();
+          }
+        }
+
+        let sampleRate = bufferSource.buffer.sampleRate;
+        let duration = bufferSource.buffer.duration;
+        let pixelSpacing = stepWidth * 1.2 + 0.5;
+
+        if (didStartPlaying && pausedStartTimestamp == null) {
+          if (lastTime != null) {
+            let timeIncrease = (audioContext.currentTime - lastTime) * playbackRate;
+            currentTime += timeIncrease;
+            if (followPlayheadToggle.checked) {
+              let scrollIncrease = timeIncrease / duration * steppedWaveformWidth;
+              let newScroll = scroll + timeIncrease / duration * steppedWaveformWidth;
+              let maxScroll = steppedWaveformWidth - waveform.parentElement.clientWidth;
+              if (newScroll + 50 > maxScroll)
+                newScroll = scroll + scrollIncrease * (maxScroll - newScroll) / 50;
+              updateScroll(newScroll);
+            }
+          }
+          lastTime = audioContext.currentTime;
+        }
+
+        if (currentTime > duration) {
+          resetPlay();
+          if (isLooping) {
+            scroll = 0;
+            startPlaying();
+          }
+          return;
+        }
+
+        let draw = waveform.getContext("2d");
+        draw.clearRect(0, 0, waveform.width, waveform.height);
+
+        let pixelWidth = waveform.getBoundingClientRect().width;
+        let spacing = pixelSpacing * waveform.width / pixelWidth;
+        let scaledStepWidth = stepWidth * waveform.width / pixelWidth;
+
+        draw.fillStyle = "rgb(200 200 200)";
+        let timeInCanvasAfterScroll = (currentTime / duration * steppedWaveformWidth - scroll) / pixelWidth * waveform.width;
+        draw.fillRect(timeInCanvasAfterScroll, 0, scaledStepWidth, waveform.height);
+
+        const windowSize = 1.5;
+        let timeSampleGroup = currentTime / step * sampleRate;
+
+        let leftSampleBound = Math.floor(scroll / pixelSpacing);
+        let offset = scroll / pixelSpacing - leftSampleBound;
+        let rightSampleBound = Math.ceil((scroll + waveform.parentElement.clientWidth) / pixelSpacing);
+        rightSampleBound = Math.min(rightSampleBound, groupedSamples.length);
+        let numSteps = rightSampleBound - leftSampleBound;
+
+        let relativeMouseX;
+        let rect = getRect(waveform.parentElement.parentElement);
+        if (skipTime === null && (mouseY < rect.top || mouseY > rect.bottom || mouseX < rect.left || mouseX > rect.right))
+          cursorTime.style.display = "none";
+        else {
+          cursorTime.style.display = "block";
+          relativeMouseX = mouseX - rect.left;
+        }
+
+        for (let i = 0; i < numSteps; i++) {
+          let sampleGroup = leftSampleBound + i;
+          let distanceFactor = 1 - Math.min(windowSize, Math.abs(timeSampleGroup - sampleGroup)) / windowSize;
+          let brightness = Math.round(36 * distanceFactor);
+          let xPercent = sampleGroup / groupedSamples.length;
+          draw.fillStyle = `hsl(${246 + xPercent * 70}, 75%, ${64 + brightness}%)`;
+
+          let left = pixelSpacing * (i - offset);
+          let right = pixelSpacing * (i - offset + 1);
+          if (relativeMouseX !== undefined && relativeMouseX >= left && relativeMouseX < right) {
+            draw.fillStyle = "rgb(200 200 200)";
+            draw.fillRect(spacing * (i - offset), 0, scaledStepWidth, waveform.height);
+            draw.fillStyle = `hsl(${246 + xPercent * 70}, 55%, 20%)`;
+
+            cursorTime.style.left = Math.min(left, waveform.parentElement.clientWidth - cursorTime.scrollWidth - 10) + "px";
+            let t = (relativeMouseX + scroll) / steppedWaveformWidth * duration;
+            cursorTime.childNodes[0].textContent = Math.floor(t / 60) + ":" + Math.floor(t % 60).toString().padStart(2, "0");
+            cursorDecimalTime.textContent = "." + Math.floor(t * 100 % 100).toString().padStart(2, "0");
+          }
+
+          let stepHeight = Math.abs(groupedSamples[sampleGroup]) / maxGroupedSample * 900 * (1 + distanceFactor * 0.2) + 10;
+          draw.fillRect(spacing * (i - offset), (waveform.height - stepHeight) / 2, scaledStepWidth, stepHeight);
+
+          // let stepHeight = Math.abs(groupedSamples[sampleGroup]) / maxGroupedSample * 450 * (1 + distanceFactor * 0.2) + 10;
+          // if (groupedSamples[sampleGroup] > 0)
+          // draw.fillRect(spacing * (i - offset), waveform.height / 2 - stepHeight, scaledStepWidth, stepHeight);
+          // else
+          //   draw.fillRect(spacing * (i - offset), waveform.height / 2, scaledStepWidth, stepHeight);
+        }
+
+        let timerLeft = currentTime / duration * steppedWaveformWidth - scroll;
+        timerLeft = Math.max(0, timerLeft);
+        timerLeft = Math.min(timerLeft, waveform.parentElement.clientWidth - timer.scrollWidth - 10);
+        timer.style.left = timerLeft + "px";
+        timer.childNodes[0].textContent = Math.floor(currentTime / 60) + ":" + Math.floor(currentTime % 60).toString().padStart(2, "0");
+        decimalTimer.textContent = "." + Math.floor(currentTime * 100 % 100).toString().padStart(2, "0");
+
+        if (zoom > waveform.parentElement.clientWidth / 4000 && Date.now() - lastScrollTime < 700) {
+          waveformScrollbar.classList.add("show");
+          playheadMarker.classList.add("show");
+          waveformScrollbar.classList.remove("hide")
+          playheadMarker.classList.remove("hide");
+          waveformScrollbar.style.left = scroll / steppedWaveformWidth * 100 + "%";
+          waveformScrollbar.style.width = waveform.parentElement.clientWidth / steppedWaveformWidth * 100 + "%";
+          playheadMarker.style.left = currentTime / duration * 100 + "%";
+          playheadMarker.style.backgroundColor = `hsl(${246 + currentTime / duration * 70}, 75%, 64%)`;
+        } else {
+          waveformScrollbar.classList.add("hide");
+          playheadMarker.classList.add("hide");
+          waveformScrollbar.classList.remove("show")
+          playheadMarker.classList.remove("show");
+        }
+      }
+
+      const noteLetters = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"];
+      function getNoteFromFrequency(frequency) {
+        let noteIndex = Math.log(frequency / 27.5) / Math.log(1.05946309436);
+        let noteLetter = noteLetters[Math.floor(noteIndex % 12)];
+        let noteOctave = Math.floor(noteIndex / 12);
+        return noteLetter + noteOctave;
+      }
+      
+      let frequencyData = null;
+      function animateFrequencyBars() {
+        if (frequencyData == null || frequencyData.length != numBins) {
+          frequencyData = new Float32Array(numBins);
+          frequencyData.fill(0);
+        }
+        let timeDomain = new Float32Array(analyzer.fftSize);
+        analyzer.getFloatTimeDomainData(timeDomain);
+        let magnitudes = fastDft(timeDomain)[0];
+        for (let i = 0; i < numBins; i++) {
+          let magnitude = Math.log(Math.max(magnitudes[i], 1e-24)) / Math.log(1.08);
+          frequencyData[i] = frequencyData[i] * smoothing + magnitude * (1 - smoothing);
+        }
+
+        let bins = document.getElementById("bins");
+        let draw = bins.getContext("2d");
+        draw.clearRect(0, 0, bins.width, bins.height);
+
+        let spacing = bins.width / frequencyData.length;
+
+        let rect = getRect(bins);
+        if (mouseX < rect.left || mouseX > rect.right || mouseY < rect.bottom - rect.height / 2 || mouseY > rect.bottom)
+          frequencyPopup.style.display = "none";
+        else {
+          frequencyPopup.style.display = "block";
+          let relativeMouseX = mouseX - rect.left;
+          let bin = Math.floor(relativeMouseX / rect.width * numBins);
+          draw.fillStyle = "hsl(270, 10%, 40%)"
+          draw.fillRect(spacing * bin, 0, spacing > 20 ? spacing * 0.9 : spacing, bins.height);
+          let frequency = bin / numBins * bufferSource.buffer.sampleRate / 2;
+          if (frequency == 0)
+            frequencyPopup.textContent = `${Math.round(frequency)} Hz`;
+          else
+            frequencyPopup.textContent = `${Math.round(frequency)} Hz (${getNoteFromFrequency(frequency)})`;
+          frequencyPopup.style.left = Math.min(Math.max(frequencyPopup.scrollWidth / 2 + 10, (bin + 0.5) / numBins * rect.width), rect.width - frequencyPopup.scrollWidth / 2 - 10) + "px";
+        }
+
+        for (let i = 0; i < frequencyData.length; i++) {
+          let binHeight = 1000 + frequencyData[i] * 12;
+          if (binHeight < 120) {
+            binHeight -= 120;
+            binHeight = -Math.log(-binHeight) / Math.log(1.07);
+            binHeight += 120;
+          }
+          draw.fillStyle = `hsl(${180 + i / numBins * 160}, 85%, 64%)`;
+          draw.fillRect(spacing * i, bins.height - binHeight, spacing > 20 ? spacing * 0.9 : spacing, binHeight);
+        }
+      }
+
+      function animateLyrics() {
+        lyricProgressBar.style.visibility = "visible";
+        newLyricInput.placeholder = `New lyric line at [${Math.floor(currentTime / 60)}:${(currentTime % 60).toFixed(2).padStart(5, "0")}]`;
+        let lastTimestamp = bufferSource.buffer.duration;  // if animating last lyric, use end of song
+        for (let i = lyrics.length - 1; i >= 0; i--) {
+          let timestamp = lyrics[i].timestamp;
+          if (currentTime > timestamp) {
+            let line = lyricsContainer.childNodes[i];
+            if (isSyncingLyrics)
+              lyricsContainer.scrollTo(0, line.offsetTop);
+            line.style.opacity = 1;
+            lyricsContainer.childNodes.forEach(other => other != line && (other.style.opacity = 0.5));
+            let duration = lastTimestamp - timestamp;
+            let timeElapsed = currentTime - timestamp;
+            lyricProgressBar.style.width = Math.max(0, timeElapsed / duration * 300 - 3) + "px";
+            return;
+          }
+          lastTimestamp = timestamp;
+        }
+        // animating before first lyric
+        if (isSyncingLyrics)
+          lyricsContainer.scrollTo(0, 0);
+        lyricProgressBar.style.width = Math.max(0, currentTime / lastTimestamp * 300 - 3) + "px";
+        lyricsContainer.childNodes.forEach(line => line.style.opacity = 0.5);
+      }
+      
+      function animate(timestamp) {
+        requestAnimationFrame(animate);
+        if (groupedSamples && bufferSource?.buffer)
+          animateWaveform();
+        if (didStartPlaying) {
+          animateFrequencyBars();
+          animateLyrics();
+        }
+      };
+      requestAnimationFrame(animate);
+
+      addEventListener("resize", handleWindowResize);
+      addEventListener("mouseout", event => { mouseX = 0; mouseY = 0; })
+      addEventListener("mousemove", event => {
+        mouseX = event.pageX; 
+        mouseY = event.pageY;
+        if (skipTime == null)
+          return;
+        if (!bufferSource)
+          return;
+        let relativeMouseX = mouseX - getLeft(waveform);
+        let duration = bufferSource.buffer.duration;
+        skipTime = (relativeMouseX + scroll) / steppedWaveformWidth * duration;
+        skipTime = Math.max(0, Math.min(skipTime, duration));
+      });
+      waveform.addEventListener("mousedown", handleMouseDown);
+      addEventListener("mouseup", handleMouseUp);
+      waveform.addEventListener("wheel", handleGesture, {passive: false});
+
+      document.getElementById("file-input").addEventListener("input", event => handleFileInput(event.target.files[0]));
+      document.getElementById("play-button").addEventListener("click", handlePlayClick);
+
+      document.getElementById("restart-button").addEventListener("click", event => {
+        scroll = 0;
+        if (pausedStartTimestamp == null) {
+          resetPlay();
+          startPlaying();
+        } else {
+          currentTime = 0;
+          pausedStartTimestamp = 0;
+          inputSampleIndex = 0;
+          outputSampleIndex = 0;
+          if (shiftedLeft) {
+            shiftedLeft.fill(0);
+            shiftedRight.fill(0);
+          }
+        }
+      });
+
+      document.getElementById("loop").addEventListener("input", event => {
+        isLooping = event.target.checked;
+      });
+
+      document.getElementById("gain").addEventListener("input", event => {
+        let value = event.target.value;
+        gain.gain.value = 4 * Math.pow(20, value - 2) - 0.01;
+        gainLabel.textContent = "Volume: " + Math.round(value * 100) + "%";
+      });
+      document.getElementById("step-width").addEventListener("input", event => {
+        let value = event.target.value;
+        stepWidth = value;
+        stepWidthLabel.textContent = "Step Width: " + value;
+        
+        if (samples) {
+          let oldSteppedWaveformWidth = steppedWaveformWidth;
+          calculateGroupedSamples();
+          updateScroll(scroll + (steppedWaveformWidth - oldSteppedWaveformWidth) * currentTime / bufferSource.buffer.duration);
+        }
+      });
+      document.getElementById("num-bins").addEventListener("input", event => {
+        numBins = Math.pow(2, event.target.value);
+        analyzer.fftSize = numBins * 2;
+        numBinsLabel.textContent = "# Frequency Bins: " + numBins;
+      });
+      document.getElementById("smoothing").addEventListener("input", event => {
+        smoothing = parseFloat(event.target.value);
+        document.getElementById("smoothing-label").textContent = "Smoothing: " + smoothing.toFixed(2);
+      });
+      document.getElementById("speed").addEventListener("input", event => {
+        let value = parseFloat(event.target.value);
+        playbackRate = value;
+        pitchScale = pitch / value;
+        speedLabel.textContent = "Speed: " + Math.floor(value * 100) + "%";
+      });
+
+      let pitchLabel = document.getElementById("pitch-label");
+      function setPitch(value, decimal=false) {
+        pitch = value;
+        pitchScale = value / playbackRate;
+        previousLeftAnalysisPhases.fill(0);
+        previousLeftSynthesisPhases.fill(0);
+        previousRightAnalysisPhases.fill(0);
+        previousRightSynthesisPhases.fill(0);
+        pitchLabel.textContent = "Pitch: " + (decimal ? (value * 100).toFixed(2) : Math.floor(value * 100)) + "%";
+      }
+      document.getElementById("pitch").addEventListener("input", event => {
+        setPitch(parseFloat(event.target.value));
+      });
+
+      document.getElementById("up-half-step").addEventListener("click", event => {
+        setPitch(pitch * 1.05946309436, true);
+      });
+      document.getElementById("down-half-step").addEventListener("click", event => {
+        setPitch(pitch / 1.05946309436, true);
+      });
+
+      function createLyricLine(text) {
+        let newLine = document.createElement("input");
+        newLine.style.width = "100%";
+        newLine.style.display = "block";
+        newLine.style.fontFamily = "Menlo, monospace";
+        newLine.style.color = "hsl(270, 20%, 85%)";
+        newLine.style.fontSize = "12pt";
+        newLine.style.backgroundColor = "transparent";
+        newLine.style.border = "none";
+        newLine.style.transitionProperty = "opacity";
+        newLine.style.transitionDuration = "0.2s";
+        newLine.value = text;
+        newLine.onchange = () => {
+          let i = Array.prototype.indexOf.call(lyricsContainer.children, newLine);
+          if (newLine.value === "") {
+            lyrics.splice(i, 1);
+            lyricsContainer.removeChild(newLine);
+          } else
+            lyrics[i].text = newLine.value;
+        };
+        return newLine;
+      }
+
+      document.getElementById("new-lyric").addEventListener("keypress", event => {
+        if (event.key === "Enter" || event.keyCode === 13) {
+          let index = lyrics.findIndex(line => line.timestamp > currentTime);
+          let text = event.target.value;
+          let newLine = createLyricLine(text);
+          newLine.value = text;
+          if (index === -1) {
+            lyrics.push({timestamp: currentTime, text: text});
+            lyricsContainer.appendChild(newLine);
+          } else {
+            lyrics.splice(index, 0, {timestamp: currentTime, text: text});
+            lyricsContainer.insertBefore(newLine, lyricsContainer.childNodes[index]);
+          }
+          event.target.value = "";
+        }
+      });
+
+      document.getElementById("save-lyrics").addEventListener("click", event => {
+        let songs = readWriteSongs();
+        let songRequest = songs.get(fileName);
+        songRequest.onsuccess = () => {
+          songs.put({name: fileName, data: songRequest.result.data, lyrics: lyrics});
+          if (lyrics.length == 0)
+            return;
+          let songIndex = allSongs.findIndex(s => s.name == fileName);
+          let song = allSongs[songIndex];
+          if (!song.hasLyrics) {
+            song.hasLyrics = true;
+            let container = allSongsContainer.children[songIndex];
+            let lyricsIcon = document.createElement("span");
+            lyricsIcon.textContent = "☴";
+            lyricsIcon.style.fontSize = "18px";
+            lyricsIcon.style.transform = "translateY(-0.5px)";
+            container.appendChild(lyricsIcon);
+          }
+        };
+      });
+
+      document.getElementById("export-lyrics").addEventListener("click", event => {
+        let link = document.createElement("a");
+        link.style.display = "none";
+        let file = new Blob([JSON.stringify(lyrics, null, 2)], {type: "application/json"});
+        file.name = fileName.substring(0, fileName.indexOf(".")) + "_lyrics.json";
+        link.href = URL.createObjectURL(file);
+        link.download = file.name;
+
+        document.body.appendChild(link);
+        link.click();
+
+        setTimeout(() => {
+          URL.revokeObjectURL(link.href);
+          link.remove();
+        }, 0);
+      });
+
+      document.getElementById("import-lyrics").addEventListener("input", event => {
+        let reader = new FileReader();
+        reader.readAsText(event.target.files[0]);
+        reader.onload = async () => {
+          lyricsContainer.replaceChildren();
+          lyrics = JSON.parse(reader.result);
+          lyrics.forEach(line => lyricsContainer.appendChild(createLyricLine(line.text)));
+        };
+      });
+
+      document.getElementById("clear-lyrics").addEventListener("click", event => {
+        lyrics = [];
+        lyricsContainer.replaceChildren();
+      });
+
+      lyricsContainer.addEventListener("wheel", event => {
+        document.getElementById("sync-scroll").disabled = false;
+        isSyncingLyrics = false;
+      });
+      document.getElementById("sync-scroll").addEventListener("click", event => {
+        event.target.disabled = true;
+        isSyncingLyrics = true;
+      });
+
+      window.addEventListener("dragover", event => event.preventDefault());
+      window.addEventListener("drop", event => {
+        event.preventDefault();
+        let input = document.getElementById("file-input");
+        input.files = event.dataTransfer.files;
+        handleFileInput(input.files[0]);
+      });
+
+      window.addEventListener("keydown", event => {
+        if (!bufferSource)
+          return;
+        if (document.activeElement.nodeName == "INPUT" || document.activeElement.nodeName == "TEXTAREA")
+          return;
+        if (event.key === " ")
+          handlePlayClick();
+      });
+
+      let explorer = document.getElementById("explorer");
+      document.getElementById("new-folder").addEventListener("click", event => {
+        let folder = document.createElement("button"); 
+        explorer.appendChild(folder);
+        folder.style.display = "flex";
+        folder.style.alignItems = "center";
+        let icon = document.createElement("img");
+        folder.appendChild(icon);
+        icon.src = "./folder_icon.svg";
+        icon.style.width = "25px";
+        icon.style.filter = "invert() sepia(100%) saturate(600%) hue-rotate(200deg)";
+        let name = document.createElement("span");
+        folder.appendChild(name);
+        name.style.margin = "8px";
+        name.textContent = "New Folder";
+      });
+
+      document.getElementById("search-song").addEventListener("input", event => {
+        let search = new RegExp(event.target.value, "i");
+        let matches = allSongs.filter(song => search.test(song.name));
+        allSongsContainer.replaceChildren();
+        for (let match of matches)
+          showSong(match.name);
+      })
+    </script>
+  </body>
+</html>
