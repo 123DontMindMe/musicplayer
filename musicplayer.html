@@ -1061,8 +1061,16 @@
         }
 
         let startSampleIndex = outputSampleIndex - numBins * 2;
-       
-        let leftMagnitudes = fastDft(shiftedLeft.slice(startSampleIndex, outputSampleIndex))[0];
+
+        let leftTimeDomain = shiftedLeft.slice(startSampleIndex, outputSampleIndex);
+        // if stereo audio but not splitting, add right time domain to left
+        if (!isSplittingChannels && rightSamples) {
+          let rightTimeDomain = shiftedRight.slice(startSampleIndex, outputSampleIndex);
+          for (let i = 0; i < leftTimeDomain.length; i++)
+            leftTimeDomain[i] = (leftTimeDomain[i] + rightTimeDomain[i]) / 2;
+          }
+
+        let leftMagnitudes = fastDft(leftTimeDomain)[0];
         for (let i = 0; i < numBins; i++) {
           let magnitude = Math.log(Math.max(leftMagnitudes[i], 1e-24)) / Math.log(1.08);
           frequencyData[i] = frequencyData[i] * smoothing + magnitude * (1 - smoothing);
