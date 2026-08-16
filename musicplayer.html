@@ -126,15 +126,22 @@
         </div>
 
         <div style="position: relative; overflow: hidden; border: solid; border-radius: 20px; border-color: hsl(270, 20%, 35%); background-color: hsl(270, 20%, 23%); border-width: 1px; margin-bottom: 10px">
-          <!-- actually stores log2(numBins) -->
-          <div style="position: absolute; top: 12px; right: 180px; z-index: 999">
-            <label id=num-bins-label for=num-bins style="display: block"> # Frequency Bins: 256 </label>
-            <input id=num-bins type=range min=4 max=14 value=8 style="width: 100%; accent-color: hsl(262, 63%, 68%)">
-          </div>
+          <div style="display: flex; flex-direction: row-reverse; gap: 25px; margin: 10px">            
+            <div style="z-index: 999">
+              <label id=smoothing-label for=num-bins style="display: block"> Smoothing: 0.00 </label>
+              <input id=smoothing type=range min=0 max=1 step=0.01 value=0 style="width: 100%; accent-color: hsl(262, 63%, 68%)">
+            </div>
 
-          <div style="position: absolute; top: 12px; right: 15px; z-index: 999">
-            <label id=smoothing-label for=num-bins style="display: block"> Smoothing: 0.00 </label>
-            <input id=smoothing type=range min=0 max=1 step=0.01 value=0 style="width: 100%; accent-color: hsl(262, 63%, 68%)">
+            <!-- actually stores log2(numBins) -->
+            <div style="z-index: 999">
+              <label id=num-bins-label for=num-bins style="display: block"> # Frequency Bins: 256 </label>
+              <input id=num-bins type=range min=4 max=14 value=8 style="width: 100%; accent-color: hsl(262, 63%, 68%)">
+            </div>
+
+            <div style="display: flex; gap: 5px; align-items: flex-start">
+              <label for=split-channels style="display: block"> Split Channels </label>
+              <input id=split-channels type=checkbox>
+            </div>
           </div>
           
           <canvas id=bins width=2000 height=1000 style="position: relative; width: 100%; height: 200px"></canvas>
@@ -1046,16 +1053,27 @@
       
       let frequencyData = null;
       function animateFrequencyBars() {
-        if (frequencyData == null || frequencyData.length != numBins) {
-          frequencyData = new Float32Array(numBins);
+        let isSplittingChannels = rightSamples && document.getElementById("split-channels").checked
+        let totalBins = isSplittingChannels ? numBins * 2 : numBins;
+        if (frequencyData == null || frequencyData.length != totalBins) {
+          frequencyData = new Float32Array(totalBins);
           frequencyData.fill(0);
         }
-        let timeDomain = new Float32Array(analyzer.fftSize);
-        analyzer.getFloatTimeDomainData(timeDomain);
-        let magnitudes = fastDft(timeDomain)[0];
+
+        let startSampleIndex = outputSampleIndex - numBins * 2;
+       
+        let leftMagnitudes = fastDft(shiftedLeft.slice(startSampleIndex, outputSampleIndex))[0];
         for (let i = 0; i < numBins; i++) {
-          let magnitude = Math.log(Math.max(magnitudes[i], 1e-24)) / Math.log(1.08);
+          let magnitude = Math.log(Math.max(leftMagnitudes[i], 1e-24)) / Math.log(1.08);
           frequencyData[i] = frequencyData[i] * smoothing + magnitude * (1 - smoothing);
+        }
+
+        if (isSplittingChannels) {
+          let rightMagnitudes = fastDft(shiftedRight.slice(startSampleIndex, outputSampleIndex))[0];
+          for (let i = 0; i < numBins; i++) {
+            let magnitude = Math.log(Math.max(rightMagnitudes[i], 1e-24)) / Math.log(1.08);
+            frequencyData[totalBins - 1 - i] = frequencyData[totalBins - 1 - i] * smoothing + magnitude * (1 - smoothing);
+          }
         }
 
         let bins = document.getElementById("bins");
@@ -1070,15 +1088,15 @@
         else {
           frequencyPopup.style.display = "block";
           let relativeMouseX = mouseX - rect.left;
-          let bin = Math.floor(relativeMouseX / rect.width * numBins);
+          let bin = Math.floor(relativeMouseX / rect.width * totalBins);
           draw.fillStyle = "hsl(270, 10%, 40%)"
           draw.fillRect(spacing * bin, 0, spacing > 20 ? spacing * 0.9 : spacing, bins.height);
-          let frequency = bin / numBins * bufferSource.buffer.sampleRate / 2;
+          let frequency = (bin < numBins ? bin : totalBins - bin) / numBins * bufferSource.buffer.sampleRate / 2;
           if (frequency == 0)
             frequencyPopup.textContent = `${Math.round(frequency)} Hz`;
           else
             frequencyPopup.textContent = `${Math.round(frequency)} Hz (${getNoteFromFrequency(frequency)})`;
-          frequencyPopup.style.left = Math.min(Math.max(frequencyPopup.scrollWidth / 2 + 10, (bin + 0.5) / numBins * rect.width), rect.width - frequencyPopup.scrollWidth / 2 - 10) + "px";
+          frequencyPopup.style.left = Math.min(Math.max(frequencyPopup.scrollWidth / 2 + 10, (bin + 0.5) / totalBins * rect.width), rect.width - frequencyPopup.scrollWidth / 2 - 10) + "px";
         }
 
         for (let i = 0; i < frequencyData.length; i++) {
@@ -1088,7 +1106,7 @@
             binHeight = -Math.log(-binHeight) / Math.log(1.07);
             binHeight += 120;
           }
-          draw.fillStyle = `hsl(${180 + i / numBins * 160}, 85%, 64%)`;
+          draw.fillStyle = `hsl(${180 + i / totalBins * 160}, 85%, 64%)`;
           draw.fillRect(spacing * i, bins.height - binHeight, spacing > 20 ? spacing * 0.9 : spacing, binHeight);
         }
       }
@@ -1123,7 +1141,7 @@
         requestAnimationFrame(animate);
         if (groupedSamples && bufferSource?.buffer)
           animateWaveform();
-        if (didStartPlaying) {
+        if (shiftedLeft) {
           animateFrequencyBars();
           animateLyrics();
         }
@@ -1342,23 +1360,6 @@
           return;
         if (event.key === " ")
           handlePlayClick();
-      });
-
-      let explorer = document.getElementById("explorer");
-      document.getElementById("new-folder").addEventListener("click", event => {
-        let folder = document.createElement("button"); 
-        explorer.appendChild(folder);
-        folder.style.display = "flex";
-        folder.style.alignItems = "center";
-        let icon = document.createElement("img");
-        folder.appendChild(icon);
-        icon.src = "./folder_icon.svg";
-        icon.style.width = "25px";
-        icon.style.filter = "invert() sepia(100%) saturate(600%) hue-rotate(200deg)";
-        let name = document.createElement("span");
-        folder.appendChild(name);
-        name.style.margin = "8px";
-        name.textContent = "New Folder";
       });
 
       document.getElementById("search-song").addEventListener("input", event => {
