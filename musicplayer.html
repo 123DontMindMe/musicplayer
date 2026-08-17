@@ -656,26 +656,29 @@
         title.addEventListener("keydown", event => {
           if (event.key === "Enter" || event.keyCode === 13) {
             event.preventDefault();
-            allSongs[allSongs.indexOf(title.oldValue)] = title.value;
-            let songs = readWriteSongs();
-            let songGetRequest = songs.get(title.oldValue);
-            songGetRequest.onsuccess = () => {
-              songs.delete(title.oldValue);
-              let song = songGetRequest.result;
-              song.name = title.value;
-              songs.put(song);
-              title.oldValue = title.value;
-            };
             title.blur();
           }
         });
-        title.addEventListener("focusout", event => title.readOnly = true);
+        title.addEventListener("blur", event => {
+          title.readOnly = true;
+          allSongs[allSongs.indexOf(title.oldValue)] = title.value;
+          let songs = readWriteSongs();
+          let songGetRequest = songs.get(title.oldValue);
+          songGetRequest.onsuccess = () => {
+            songs.delete(title.oldValue);
+            let song = songGetRequest.result;
+            song.name = title.value;
+            songs.put(song);
+            title.oldValue = title.value;
+          };
+        });
         
         container.appendChild(title);
         container.oncontextmenu = event => {
           event.preventDefault();
           
           let menu = document.createElement("div");
+          menu.tabIndex = 0;
           menu.style.display = "flex";
           menu.style.flexDirection = "column";
           menu.style.backdropFilter = "blur(32px) saturate(35%) brightness(180%)";
@@ -701,7 +704,6 @@
           renameButton.onclick = event => {
             title.readOnly = false;
             menu.onblur = null;
-            menu.remove();
             title.focus();
           }
           menu.appendChild(renameButton);
@@ -715,7 +717,6 @@
             readWriteSongs().delete(title.value);
             container.remove();
             menu.onblur = null;
-            menu.remove();
           }
           menu.appendChild(deleteButton);
 
@@ -725,7 +726,7 @@
           document.body.appendChild(menu);
           menu.style.left = Math.min(mouseX, document.body.clientWidth - menu.scrollWidth - 5);
           menu.focus();
-          menu.onblur = event => menu.remove();
+          window.addEventListener("click", event => menu.remove());
         }
         container.onclick = event => {
           if (event.pointerId == -1)
