@@ -251,6 +251,8 @@
 
       let fileName = null;
       let currentSongKey = null;
+      let currentQueue = null;
+      let currentPlaylistKey = null;
       let stepWidth = 2;
       let scroll = 0;
       let idealWaveformWidth = 4000;
@@ -701,6 +703,7 @@
         let reader = new FileReader();
         reader.readAsArrayBuffer(file);
         reader.onload = async () => {
+          currentPlaylistKey = null;
           let data = reader.result.slice(0);
           let key = await addSong({name: file.name, data: data});
           loadSong(reader.result, file.name, key);
@@ -762,7 +765,7 @@
         let playlists = document.getElementById("playlists");
         playlists.insertBefore(button, document.getElementById("create-playlist"));
 
-        function showPlaylistSong(name, songKey) {
+        function createPlaylistSong(name, songKey) {
           let container = document.createElement("button");
           container.classList.add("dark-button");
           container.style.borderRadius = "0";
@@ -774,13 +777,17 @@
           container.style.padding = "3px 5px 3px 5px";
           container.style.flex = "0 0 auto";
           container.innerText = name;
-          button.dropdown.appendChild(container);
 
           container.onclick = async () => {
             let song = await getSong(songKey);
             await loadSong(song.data, song.name, songKey);
             startPlaying();
+            let playlist = await getPlaylist(key);
+            let currentIndex = playlist.songs.indexOf(songKey);
+            currentQueue = playlist.songs.splice(currentIndex + 1);
+            currentPlaylistKey = key;
           }
+          return container;
         }
 
         button.onclick = async () => {
@@ -806,12 +813,15 @@
             console.error(`playlist with key ${key} not found in database`);
             return;
           }
+          let buttons = Array(playlist.songs.length);
           let numRemaining = playlist.songs.length;
-          for (let songKey of playlist.songs) {
+          for (let i = 0; i < playlist.songs.length; i++) {
+            let songKey = playlist.songs[i];
             getSong(songKey).then(song => { 
-              showPlaylistSong(song.name, songKey);
+              buttons[i] = createPlaylistSong(song.name, songKey);
               numRemaining--;
-              if (numRemaining == 0){
+              if (numRemaining == 0) {
+                button.dropdown.append(...buttons);
                 dropdown.style.height = dropdown.scrollHeight + "px";
                 setTimeout(() => dropdown.style.height = "auto", 150);
               }
@@ -828,9 +838,13 @@
           updatePlaylist(key, playlist => {
             if (!playlist.songs.includes(songKey)) {
               playlist.songs.push(songKey);
-              if (button.dropdown)
-                showPlaylistSong(songName, songKey);
               numSongs.innerText = ` (${playlist.songs.length})`;
+
+              if (button.dropdown)
+                button.dropdown.appendChild(createPlaylistSong(songName, songKey));
+
+              if (currentPlaylistKey === key)
+                currentQueue.push(songKey);
             }
             return playlist;
           });
@@ -971,6 +985,7 @@
             container.appendChild(lyricsIcon);
           }
 
+          currentPlaylistKey = null;
           await loadSong(song.data, name, key);
           startPlaying();
         };
@@ -1170,6 +1185,14 @@
           if (isLooping) {
             scroll = 0;
             startPlaying();
+          } else if (currentQueue) {
+            let nextKey = currentQueue.shift();
+            if (nextKey !== undefined)
+              getSong(nextKey).then(async nextSong => {
+                await loadSong(nextSong.data, nextSong.name, nextKey);
+                startPlaying();
+                scroll = 0;
+              });
           }
           return;
         }
