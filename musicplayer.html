@@ -49,6 +49,12 @@
       background-color: hsl(300, 25%, 23%);
     }
 
+    .dark-button:disabled {
+      background-color: hsl(300, 20%, 21%);
+      color: hsl(300, 20%, 30%);
+      cursor: default;
+    }
+
     input:focus {
       outline: none;
     }
@@ -246,6 +252,39 @@
       let allSongsContainer = document.getElementById("all-songs");
       let allSongs = [];
 
+      // my pride and joy
+      class GlobalEvent {
+        listeners = new Map();
+        observer = new MutationObserver(mutations => {
+          for (let mutation of mutations)
+            if (mutation.type === "childList") {
+              let removedNodes = mutation.removedNodes;
+              if (removedNodes.length == 0)
+                continue;
+              for (let removedNode of removedNodes)
+                if (removedNode instanceof Element) {
+                  this.listeners.delete(removedNode);
+
+                  for (let child of removedNode.querySelectorAll("*"))
+                    this.listeners.delete(child);
+                }
+            }
+        });
+        
+        constructor(scope) {
+          this.observer.observe(scope, { attributes: false, childList: true, subtree: true });
+        }
+        
+        addListener(element, listener) {
+          this.listeners.set(element, listener);
+        }
+
+        invoke(...args) {
+          for (let [element, listener] of this.listeners)
+            listener(...args);
+        }
+      }
+
       let mouseX = 0;
       let mouseY = 0;
 
@@ -253,6 +292,9 @@
       let currentSongKey = null;
       let currentQueue = null;
       let currentPlaylistKey = null;
+      let onSongChange = new GlobalEvent(queue);
+      let onSongRename = new GlobalEvent(queue);
+
       let stepWidth = 2;
       let scroll = 0;
       let idealWaveformWidth = 4000;
@@ -468,6 +510,62 @@
         songs.createIndex("name", "name");
         database.createObjectStore("playlists", { autoIncrement: true });
       };
+
+      function showEnterTextPrompt(title, value, onConfirm) {
+        let prompt = document.createElement("div");
+        prompt.classList.add("panel");
+        prompt.style.display = "flex";
+        prompt.style.flexDirection = "column";
+        prompt.style.gap = "6px";
+        prompt.style.boxShadow = "0 0 10px rgb(0 0 0 / 25%)";
+        prompt.style.padding = "25px";
+        prompt.style.width = "400px";
+        prompt.style.height = "100px";
+        prompt.style.position = "absolute";
+        prompt.style.left = "50%";
+        prompt.style.top = "50%";
+        prompt.style.transform = "translate(-50%, -50%)";
+
+        let text = document.createElement("span");
+        text.innerText = title;
+        prompt.appendChild(text);
+
+        let input = document.createElement("input");
+        input.value = value;
+        input.classList.add("dark-input");
+        input.style.fontSize = "11pt";
+        input.style.padding = "5px";
+        prompt.appendChild(input);
+
+        let buttonRow = document.createElement("div");
+        buttonRow.style.display = "flex";
+        buttonRow.style.gap = "6px";
+
+        let confirm = document.createElement("button");
+        confirm.innerText = "Confirm";
+        confirm.style.flex = "1";
+        confirm.style.padding = "6px";
+        confirm.disabled = input.value.trim().length == 0;
+        confirm.onclick = () => {
+          onConfirm(input.value.trim());
+          prompt.remove();
+        };
+        buttonRow.appendChild(confirm);
+
+        input.oninput = () => confirm.disabled = input.value.trim().length == 0;
+
+        let cancel = document.createElement("button");
+        cancel.innerText = "Cancel";
+        cancel.style.flex = "1";
+        cancel.style.padding = "6px";
+        cancel.onclick = () => prompt.remove();
+        buttonRow.appendChild(cancel);
+
+        prompt.appendChild(buttonRow);
+
+        document.body.appendChild(prompt);
+        input.focus();
+      }
 
       function resample(samples, startIndex, originalLength, newLength) {
         let resampled = new Float32Array(newLength);
@@ -717,6 +815,8 @@
         playButton.disabled = false;
         restartButton.disabled = false;
         fileName = name;
+        if (key !== currentSongKey)
+          onSongChange.invoke(key);
         currentSongKey = key;
         document.title = name;
 
@@ -766,31 +866,6 @@
         let playlists = document.getElementById("playlists");
         playlists.insertBefore(button, document.getElementById("create-playlist"));
 
-        function createPlaylistSong(name, songKey) {
-          let container = document.createElement("button");
-          container.classList.add("dark-button");
-          container.style.borderRadius = "0";
-          container.style.gap = "5px";
-          container.style.textOverflow = "ellipsis";
-          container.style.overflow = "hidden";
-          container.style.whiteSpace = "nowrap";
-          container.style.textAlign = "left";
-          container.style.padding = "3px 5px 3px 5px";
-          container.style.flex = "0 0 auto";
-          container.innerText = name;
-
-          container.onclick = async () => {
-            let song = await getSong(songKey);
-            await loadSong(song.data, song.name, songKey);
-            startPlaying();
-            let playlist = await getPlaylist(key);
-            let currentIndex = playlist.songs.indexOf(songKey);
-            currentQueue = playlist.songs.splice(currentIndex + 1);
-            currentPlaylistKey = key;
-          }
-          return container;
-        }
-
         button.onclick = async () => {
           switch (button.dropdownState) {
             case "closed":
@@ -812,7 +887,7 @@
               for (let i = 0; i < playlist.songs.length; i++) {
                 let songKey = playlist.songs[i];
                 getSong(songKey).then(song => { 
-                  buttons[i] = createPlaylistSong(song.name, songKey);
+                  buttons[i] = createSongButton(song.name, songKey, key);
                   numRemaining--;
                   if (numRemaining == 0) {
                     button.dropdown.append(...buttons);
@@ -852,7 +927,7 @@
               numSongs.innerText = ` (${playlist.songs.length})`;
 
               if (button.dropdown)
-                button.dropdown.appendChild(createPlaylistSong(songName, songKey));
+                button.dropdown.appendChild(createSongButton(songName, songKey, key));
 
               if (currentPlaylistKey === key)
                 currentQueue.push(songKey);
@@ -862,54 +937,57 @@
         }
       }
 
-      function showSong(name, key) {
-        let container = document.createElement("button");
-        container.style.display = "flex";
-        container.style.overflow = "clip";
-        container.style.borderRadius = "0";
-        container.style.alignItems = "center";
-        container.style.gap = "5px";
-        container.draggable = true;
-        container.ondragstart = event => {
-          event.dataTransfer.setData("song-name", name);
-          event.dataTransfer.setData("song-key", key);
+      function createSongButton(songName, songKey, playlistKey) {
+        let songButton = document.createElement("button");
+        if (playlistKey !== undefined)
+          songButton.classList.add("dark-button");
+        songButton.style.display = "flex";
+        songButton.style.overflow = "clip";
+        songButton.style.borderRadius = "0";
+        songButton.style.alignItems = "center";
+        songButton.style.gap = "5px";
+        songButton.draggable = true;
+        songButton.ondragstart = event => {
+          event.dataTransfer.setData("song-name", songName);
+          event.dataTransfer.setData("song-key", songKey);
+        };
+
+        let title = document.createElement("span");
+        title.innerText = songName;
+        title.style.flex = "1";
+        title.style.textAlign = "left";
+        songButton.appendChild(title);
+
+        onSongRename.addListener(songButton, (targetSongKey, newName) => {
+          if (targetSongKey === songKey)
+            title.innerText = newName;
+        });
+
+        if (lyrics.length > 0) {
+          let lyricsIcon = document.createElement("span");
+          lyricsIcon.textContent = "☴";
+          lyricsIcon.style.fontSize = "18px";
+          lyricsIcon.style.transform = "translateY(-0.5px)";
+          songButton.appendChild(lyricsIcon);
         }
 
-        let title = document.createElement("textarea");
-        title.readOnly = true;
-        title.value = name;
-        title.rows = 1;
-        title.style.userSelect = "none";
-        title.style.webkitUserSelect = "none";
-        title.style.resize = "none";
-        title.style.cursor = "pointer";
-        title.style.backgroundColor = "transparent";
-        title.style.border = "none";
-        title.style.fontFamily = "Menlo, monospace";
-        title.style.color = "hsl(270 20% 85%)"
-        title.style.alignContent = "start";
-        title.style.margin = "0";
-        title.style.textOverflow = "ellipsis";
-        title.style.overflow = "hidden";
-        title.style.whiteSpace = "nowrap";
-        title.style.flex = "1";
-        title.style.textAlign = "start";
-        title.addEventListener("keydown", event => {
-          if (event.key === "Enter" || event.keyCode === 13) {
-            event.preventDefault();
-            title.blur();
+        let nowPlaying = document.createElement("span");
+        nowPlaying.textContent = "(Playing)";
+        if (currentSongKey === songKey) {
+          songButton.appendChild(nowPlaying);
+          songButton.disabled = true;
+        }
+        onSongChange.addListener(songButton, newSongKey => {
+          if (newSongKey === songKey) {
+            songButton.appendChild(nowPlaying);
+            songButton.disabled = true;
+          } else {
+            nowPlaying.remove();
+            songButton.disabled = false;
           }
         });
-        title.addEventListener("blur", event => {
-          title.readOnly = true;
-          updateSong(key, song => {
-            song.name = title.value;
-            return song;
-          });
-        });
-        
-        container.appendChild(title);
-        container.oncontextmenu = event => {
+
+        songButton.oncontextmenu = event => {
           event.preventDefault();
           
           let menu = document.createElement("div");
@@ -923,23 +1001,27 @@
           menu.style.overflow = "clip";
           menu.style.maxWidth = "250px";
 
-          let songName = document.createElement("p");
-          songName.textContent = title.value;
-          songName.style.textWrap = "nowrap";
-          songName.style.textOverflow = "ellipsis";
-          songName.style.overflow = "hidden";
-          songName.style.margin = "0 4px 0 4px";
-          songName.style.color = "rgb(80 80 80)";
-          songName.style.fontSize = "12px";
-          menu.appendChild(songName);
+          let menuTitle = document.createElement("p");
+          menuTitle.textContent = title.innerText;
+          menuTitle.style.textWrap = "nowrap";
+          menuTitle.style.textOverflow = "ellipsis";
+          menuTitle.style.overflow = "hidden";
+          menuTitle.style.margin = "0 4px 0 4px";
+          menuTitle.style.color = "rgb(80 80 80)";
+          menuTitle.style.fontSize = "12px";
+          menu.appendChild(menuTitle);
 
           let renameButton = document.createElement("button");
           renameButton.textContent = "Rename";
           renameButton.classList.add("popup-button");
-          renameButton.onclick = event => {
-            title.readOnly = false;
-            menu.onblur = null;
-            title.focus();
+          renameButton.onclick = () => {
+            showEnterTextPrompt("Rename Song", title.innerText, newName => {
+              updateSong(songKey, song => {
+                song.name = newName;
+                return song;
+              });
+              onSongRename.invoke(songKey, newName);
+            });
           }
           menu.appendChild(renameButton);
 
@@ -948,8 +1030,8 @@
           deleteButton.textContent = "Delete";
           deleteButton.style.color = "red";
           deleteButton.onclick = event => {
-            readWriteSongs().delete(key);
-            container.remove();
+            readWriteSongs().delete(songKey);
+            songButton.remove();
             menu.onblur = null;
           }
           menu.appendChild(deleteButton);
@@ -962,27 +1044,19 @@
           menu.focus();
           window.addEventListener("click", event => menu.remove());
         }
-        container.onclick = async event => {
+        
+        songButton.onclick = async event => {
           if (event.pointerId == -1)
             return;
 
-          let song = await getSong(key);
-          container.disabled = true;
-
-          if (queue.previousPlaying) {
-            queue.previousPlaying.parentElement.disabled = false;
-            queue.previousPlaying.nextElementSibling?.remove();
-            queue.previousPlaying.remove();
+          if (playlistKey !== undefined) {
+            let playlist = await getPlaylist(playlistKey);
+            let currentIndex = playlist.songs.indexOf(songKey);
+            currentQueue = playlist.songs.splice(currentIndex + 1);
+            currentPlaylistKey = playlistKey;
           }
-          
-          let nowPlaying = document.createElement("span");
-          nowPlaying.textContent = "♫";
-          nowPlaying.style.fontSize = "13px";
-          nowPlaying.style.fontWeight = "bold";
-          nowPlaying.style.fontFamily = "sans-serif";
 
-          container.appendChild(nowPlaying);
-          queue.previousPlaying = nowPlaying;
+          let song = await getSong(songKey);
 
           lyricsContainer.replaceChildren();
           lyrics = song.lyrics ?? [];
@@ -993,39 +1067,20 @@
             lyricsIcon.textContent = "☴";
             lyricsIcon.style.fontSize = "18px";
             lyricsIcon.style.transform = "translateY(-0.5px)";
-            container.appendChild(lyricsIcon);
+            songButton.appendChild(lyricsIcon);
           }
 
           currentPlaylistKey = null;
-          await loadSong(song.data, name, key);
+          await loadSong(song.data, songName, songKey);
           startPlaying();
         };
 
-        if (document.title == name) {
-          container.disabled = true;
-          let nowPlaying = document.createElement("span");
-          nowPlaying.textContent = "♫";
-          nowPlaying.style.fontSize = "13px";
-          nowPlaying.style.fontWeight = "bold";
-          nowPlaying.style.fontFamily = "sans-serif";
-          container.appendChild(nowPlaying);
-          queue.previousPlaying = nowPlaying;
-
-          if (lyrics.length > 0) {
-            let lyricsIcon = document.createElement("span");
-            lyricsIcon.textContent = "☴";
-            lyricsIcon.style.fontSize = "18px";
-            lyricsIcon.style.transform = "translateY(-0.5px)";
-            container.appendChild(lyricsIcon);
-          }
-        }
-
-        allSongsContainer.appendChild(container);
+        return songButton;
       }
 
       function addNewSong(name, key) {
         allSongs.push({name: name, key: key, hasLyrics: false});
-        showSong(name, key);
+        allSongsContainer.appendChild(createSongButton(name, key));
       }
 
       function startPlaying(time = 0) {
@@ -1618,64 +1673,14 @@
         let matches = allSongs.filter(song => search.test(song.name));
         allSongsContainer.replaceChildren();
         for (let match of matches)
-          showSong(match.name);
+          allSongsContainer.appendChild(createSongButton(match.name, match.key));
       });
 
       document.getElementById("create-playlist").addEventListener("click", event => {
-        let prompt = document.createElement("div");
-        prompt.classList.add("panel");
-        prompt.style.display = "flex";
-        prompt.style.flexDirection = "column";
-        prompt.style.gap = "6px";
-        prompt.style.boxShadow = "0 0 10px rgb(0 0 0 / 25%)";
-        prompt.style.padding = "25px";
-        prompt.style.width = "400px";
-        prompt.style.height = "100px";
-        prompt.style.position = "absolute";
-        prompt.style.left = "50%";
-        prompt.style.top = "50%";
-        prompt.style.transform = "translate(-50%, -50%)";
-
-        let text = document.createElement("span");
-        text.innerText = "Enter Playlist Name";
-        prompt.appendChild(text);
-
-        let input = document.createElement("input");
-        input.classList.add("dark-input");
-        input.style.fontSize = "11pt";
-        input.style.padding = "5px";
-        prompt.appendChild(input);
-
-        let buttonRow = document.createElement("div");
-        buttonRow.style.display = "flex";
-        buttonRow.style.gap = "6px";
-
-        let confirm = document.createElement("button");
-        confirm.innerText = "Confirm";
-        confirm.style.flex = "1";
-        confirm.style.padding = "6px";
-        confirm.disabled = true;
-        confirm.onclick = async () => {
-          prompt.remove();
-
-          let key = await addPlaylist({name: input.value, songs: []});
-          showPlaylist({name: input.value, songs: []}, key);
-        };
-        buttonRow.appendChild(confirm);
-
-        input.oninput = () => confirm.disabled = input.value === "";
-
-        let cancel = document.createElement("button");
-        cancel.innerText = "Cancel";
-        cancel.style.flex = "1";
-        cancel.style.padding = "6px";
-        cancel.onclick = () => prompt.remove();
-        buttonRow.appendChild(cancel);
-
-        prompt.appendChild(buttonRow);
-
-        document.body.appendChild(prompt);
-        input.focus();
+        showEnterTextPrompt("Enter Playlist Name", "", async text => {
+          let key = await addPlaylist({name: text, songs: []});
+          showPlaylist({name: text, songs: []}, key);
+        });
       });
     </script>
   </body>
