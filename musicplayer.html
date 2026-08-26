@@ -977,6 +977,9 @@
         title.innerText = songName;
         title.style.flex = "1";
         title.style.textAlign = "left";
+        title.style.whiteSpace = "nowrap";
+        title.style.overflow = "hidden";
+        title.style.textOverflow = "ellipsis";
         songButton.appendChild(title);
 
         onSongRename.addListener(songButton, (targetSongKey, newName) => {
