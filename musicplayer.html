@@ -752,6 +752,7 @@
         button.style.flex = "1";
         button.style.textAlign = "left";
         button.style.overflowWrap = "break-word";
+        button.dropdownState = "closed";
 
         let title = document.createElement("span");
         title.innerText = playlist.name;
@@ -791,44 +792,54 @@
         }
 
         button.onclick = async () => {
-          if (button.dropdown) {
-            button.dropdown.style.height = button.dropdown.scrollHeight + "px";
-            setTimeout(() => button.dropdown.style.height = "0");
-            setTimeout(() => {
-              button.dropdown?.remove();
-              button.dropdown = null;
-            }, 150);
-            return;
-          }
-          let dropdown = document.createElement("div");
-          dropdown.style.display = "flex";
-          dropdown.style.flexDirection = "column";
-          dropdown.style.height = "0";
-          dropdown.style.transition = "height 0.15s ease-out";
-          dropdown.style.flex = "0 0 auto";
-          dropdown.style.overflow = "clip";
+          switch (button.dropdownState) {
+            case "closed":
+              let dropdown = document.createElement("div");
+              dropdown.style.display = "flex";
+              dropdown.style.flexDirection = "column";
+              dropdown.style.height = "0";
+              dropdown.style.transition = "height 0.15s ease-out";
+              dropdown.style.flex = "0 0 auto";
+              dropdown.style.overflow = "clip";
 
-          let playlist = await getPlaylist(key);
-          if (!playlist) {
-            console.error(`playlist with key ${key} not found in database`);
-            return;
-          }
-          let buttons = Array(playlist.songs.length);
-          let numRemaining = playlist.songs.length;
-          for (let i = 0; i < playlist.songs.length; i++) {
-            let songKey = playlist.songs[i];
-            getSong(songKey).then(song => { 
-              buttons[i] = createPlaylistSong(song.name, songKey);
-              numRemaining--;
-              if (numRemaining == 0) {
-                button.dropdown.append(...buttons);
-                dropdown.style.height = dropdown.scrollHeight + "px";
-                setTimeout(() => dropdown.style.height = "auto", 150);
+              let playlist = await getPlaylist(key);
+              if (!playlist) {
+                console.error(`playlist with key ${key} not found in database`);
+                break;
               }
-            });
+              let buttons = Array(playlist.songs.length);
+              let numRemaining = playlist.songs.length;
+              for (let i = 0; i < playlist.songs.length; i++) {
+                let songKey = playlist.songs[i];
+                getSong(songKey).then(song => { 
+                  buttons[i] = createPlaylistSong(song.name, songKey);
+                  numRemaining--;
+                  if (numRemaining == 0) {
+                    button.dropdown.append(...buttons);
+                    dropdown.style.height = dropdown.scrollHeight + "px";
+                    setTimeout(() => {
+                      dropdown.style.height = "auto";
+                      button.dropdownState = "open";
+                    }, 150);
+                  }
+                });
+              }
+              button.after(dropdown);
+              button.dropdown = dropdown;
+              button.dropdownState = "animating";
+              break;
+            
+            case "open":
+              button.dropdown.style.height = button.dropdown.scrollHeight + "px";
+              setTimeout(() => button.dropdown.style.height = "0");
+              setTimeout(() => {
+                button.dropdown.remove();
+                button.dropdown = null;
+                button.dropdownState = "closed";
+              }, 150);
+              button.dropdownState = "animating";
+              break;
           }
-          button.after(dropdown);
-          button.dropdown = dropdown;
         };
 
         button.ondrop = event => {
