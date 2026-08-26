@@ -437,8 +437,17 @@
 
       function getAllSongs() {
         return new Promise((resolve) => {
-          let request = readSongs().getAllRecords();
-          request.onsuccess = () => resolve(request.result);
+          let transaction = readSongs();
+          let request = transaction.openCursor();
+          let songs = [];
+          request.onsuccess = () => {
+            let cursor = request.result;
+            if (cursor) {
+              songs.push([cursor.key, cursor.value]);
+              cursor.continue();
+            } else
+              resolve(songs);
+          };
         });
       }
 
@@ -469,8 +478,17 @@
 
       function getAllPlaylists() {
         return new Promise((resolve) => {
-          let request = readPlaylists().getAllRecords();
-          request.onsuccess = () => resolve(request.result);
+          let transaction = readPlaylists();
+          let request = transaction.openCursor();
+          let playlists = [];
+          request.onsuccess = () => {
+            let cursor = request.result;
+            if (cursor) {
+              playlists.push([cursor.key, cursor.value]);
+              cursor.continue();
+            } else
+              resolve(playlists);
+          };
         });
       }
 
@@ -496,13 +514,13 @@
         database = event.target.result;
 
         getAllSongs().then(entries => {
-          for (let entry of entries)
-            addNewSong(entry.value.name, entry.key);
+          for (let [key, value] of entries)
+            addNewSong(value.name, key);
         });
 
         getAllPlaylists().then(entries => {
-          for (let entry of entries)
-            showPlaylist(entry.value, entry.key);
+          for (let [key, value] of entries)
+            showPlaylist(value, key);
         });
       };
 
@@ -944,6 +962,7 @@
         if (playlistKey !== undefined)
           songButton.classList.add("dark-button");
         songButton.style.display = "flex";
+        songButton.style.flex = "0 0 auto";
         songButton.style.overflow = "clip";
         songButton.style.borderRadius = "0";
         songButton.style.alignItems = "center";
