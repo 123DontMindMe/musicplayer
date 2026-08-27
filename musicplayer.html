@@ -296,6 +296,7 @@
       let currentPlaylistKey = null;
       let onSongChange = new GlobalEvent(queue);
       let onSongRename = new GlobalEvent(queue);
+      let onSongDelete = new GlobalEvent(queue);
 
       let stepWidth = 2;
       let scroll = 0;
@@ -508,6 +509,21 @@
             putRequest.onsuccess = () => resolve();
           };
         })
+      }
+
+      function updateAllPlaylists(updater) {
+        return new Promise((resolve) => {
+          let transaction = readWritePlaylists();
+          let request = transaction.openCursor();
+          request.onsuccess = () => {
+            let cursor = request.result;
+            if (cursor) {
+              cursor.update(updater(cursor.value));
+              cursor.continue();
+            } else
+              resolve();
+          };
+        });
       }
 
       databaseRequest.onsuccess = event => {
@@ -1020,6 +1036,11 @@
             title.innerText = newName;
         });
 
+        onSongDelete.addListener(songButton, (targetSongKey) => {
+          if (targetSongKey === songKey)
+            songButton.remove();
+        });
+
         if (lyrics.length > 0) {
           let lyricsIcon = document.createElement("span");
           lyricsIcon.textContent = "☴";
@@ -1096,7 +1117,16 @@
           deleteButton.style.color = "red";
           deleteButton.onclick = event => {
             readWriteSongs().delete(songKey);
-            songButton.remove();
+            updateAllPlaylists(playlist => {
+              let songIndex = playlist.songs.indexOf(songKey);
+              if (songIndex !== -1)
+                playlist.songs.splice(songIndex, 1);
+              return playlist;
+            });
+            onSongDelete.invoke(songKey);
+            let songIndex = currentQueue.indexOf(songKey);
+            if (songIndex !== -1)
+              currentQueue.splice(songIndex);
             menu.onblur = null;
           }
           menu.appendChild(deleteButton);
@@ -1114,12 +1144,15 @@
           if (event.pointerId == -1)
             return;
 
-          if (playlistKey !== undefined) {
+          if (playlistKey === undefined) 
+            currentPlaylistKey = null;
+          else {
             let playlist = await getPlaylist(playlistKey);
             let currentIndex = playlist.songs.indexOf(songKey);
             currentQueue = playlist.songs.splice(currentIndex + 1);
+            console.log(playlistKey);
             currentPlaylistKey = playlistKey;
-          }
+          } 
 
           let song = await getSong(songKey);
 
@@ -1135,7 +1168,6 @@
             songButton.appendChild(lyricsIcon);
           }
 
-          currentPlaylistKey = null;
           await loadSong(song.data, songName, songKey);
           startPlaying();
         };
