@@ -1061,7 +1061,7 @@
           frequencyData.fill(0);
         }
 
-        let startSampleIndex = outputSampleIndex - numBins * 2;
+        let startSampleIndex = Math.min(outputSampleIndex, samples.length) - numBins * 2;
 
         let leftTimeDomain = shiftedLeft.slice(startSampleIndex, outputSampleIndex);
         // if stereo audio but not splitting, add right time domain to left
