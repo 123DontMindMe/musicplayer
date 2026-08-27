@@ -297,6 +297,7 @@
       let onSongChange = new GlobalEvent(queue);
       let onSongRename = new GlobalEvent(queue);
       let onSongDelete = new GlobalEvent(queue);
+      let onPlaylistUpdate = new GlobalEvent(queue);
 
       let stepWidth = 2;
       let scroll = 0;
@@ -911,6 +912,11 @@
         let playlists = document.getElementById("playlists");
         playlists.insertBefore(button, document.getElementById("create-playlist"));
 
+        onPlaylistUpdate.addListener(title, (targetPlaylistKey, newPlaylist) => {
+          if (targetPlaylistKey === key)
+            numSongs.innerText = ` (${newPlaylist.songs.length})`;
+        });
+
         button.onclick = async () => {
           switch (button.dropdownState) {
             case "closed":
@@ -929,15 +935,21 @@
                 break;
               }
 
+              let emptyText = document.createElement("span");
+              emptyText.innerText = "Empty (drag and drop songs to add)";
+              emptyText.style.backgroundColor = "hsl(300 25% 28%)";
+              emptyText.style.color = "hsl(300 20% 60%)";
+              emptyText.style.textAlign = "center";
+              emptyText.style.fontSize = "10pt";
+              emptyText.style.padding = "5px";
+              onPlaylistUpdate.addListener(emptyText, (targetPlaylistKey, newPlaylist) => {
+                console.log("test");
+                if (targetPlaylistKey === key)
+                  emptyText.style.display = newPlaylist.songs.length === 0 ? "inline" : "none";
+              })
+              dropdown.appendChild(emptyText);
+
               if (playlist.songs.length === 0) {
-                let emptyText = document.createElement("span");
-                emptyText.innerText = "Empty (drag and drop songs to add)";
-                emptyText.style.backgroundColor = "hsl(300 25% 28%)";
-                emptyText.style.color = "hsl(300 20% 60%)";
-                emptyText.style.textAlign = "center";
-                emptyText.style.fontSize = "10pt";
-                emptyText.style.padding = "5px";
-                dropdown.appendChild(emptyText);
                 setTimeout(() => dropdown.style.height = dropdown.scrollHeight + "px");
                 setTimeout(() => {
                   dropdown.style.height = "auto";
@@ -945,6 +957,8 @@
                 }, 150);
                 dropdown.isEmpty = true;
               } else {
+                emptyText.style.display = "none";
+
                 let buttons = Array(playlist.songs.length);
                 let numRemaining = playlist.songs.length;
                 for (let i = 0; i < playlist.songs.length; i++) {
@@ -988,7 +1002,6 @@
           updatePlaylist(key, playlist => {
             if (!playlist.songs.includes(songKey)) {
               playlist.songs.push(songKey);
-              numSongs.innerText = ` (${playlist.songs.length})`;
 
               if (button.dropdown) {
                 if (button.dropdown.isEmpty) {
@@ -1000,6 +1013,8 @@
 
               if (currentPlaylistKey === key)
                 currentQueue.push(songKey);
+
+              onPlaylistUpdate.invoke(key, playlist);
             }
             return playlist;
           });
@@ -1111,6 +1126,26 @@
           }
           menu.appendChild(renameButton);
 
+          if (playlistKey !== undefined) {
+            let removeButton = document.createElement("button");
+            removeButton.classList.add("popup-button");
+            removeButton.textContent = "Remove from playlist";
+            removeButton.onclick = () => {
+              updatePlaylist(playlistKey, playlist => {
+                playlist.songs.splice(playlist.songs.indexOf(songKey), 1);
+                onPlaylistUpdate.invoke(playlistKey, playlist);
+                songButton.remove();
+                if (currentPlaylistKey === playlistKey) {
+                  let songIndex = currentQueue.indexOf(songKey);
+                  if (songIndex !== -1)
+                    currentQueue.splice(songIndex, 1);
+                }
+                return playlist;
+              });
+            }
+            menu.appendChild(removeButton);
+          }
+
           let deleteButton = document.createElement("button");
           deleteButton.classList.add("popup-button");
           deleteButton.textContent = "Delete";
@@ -1119,14 +1154,16 @@
             readWriteSongs().delete(songKey);
             updateAllPlaylists(playlist => {
               let songIndex = playlist.songs.indexOf(songKey);
-              if (songIndex !== -1)
+              if (songIndex !== -1) {
                 playlist.songs.splice(songIndex, 1);
+                onPlaylistUpdate.invoke(playlistKey, playlist);
+              }
               return playlist;
             });
             onSongDelete.invoke(songKey);
-            let songIndex = currentQueue.indexOf(songKey);
+            let songIndex = currentQueue?.indexOf(songKey) ?? -1;
             if (songIndex !== -1)
-              currentQueue.splice(songIndex);
+              currentQueue.splice(songIndex, 1);
             menu.onblur = null;
           }
           menu.appendChild(deleteButton);
