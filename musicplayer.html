@@ -1556,7 +1556,7 @@
           let bin = Math.floor(relativeMouseX / rect.width * totalBins);
           draw.fillStyle = "hsl(270, 10%, 40%)"
           draw.fillRect(spacing * bin, 0, spacing > 20 ? spacing * 0.9 : spacing, bins.height);
-          let frequency = (bin < numBins ? bin : totalBins - bin) / numBins * bufferSource.buffer.sampleRate / 2;
+          let frequency = (!isSplittingChannels || bin < numBins ? bin : totalBins - bin) / numBins * bufferSource.buffer.sampleRate / 2;
           if (frequency == 0)
             frequencyPopup.textContent = `${Math.round(frequency)} Hz`;
           else
