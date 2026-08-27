@@ -905,28 +905,47 @@
               dropdown.style.transition = "height 0.15s ease-out";
               dropdown.style.flex = "0 0 auto";
               dropdown.style.overflow = "clip";
+              dropdown.ondrop = button.ondrop;
 
               let playlist = await getPlaylist(key);
               if (!playlist) {
                 console.error(`playlist with key ${key} not found in database`);
                 break;
               }
-              let buttons = Array(playlist.songs.length);
-              let numRemaining = playlist.songs.length;
-              for (let i = 0; i < playlist.songs.length; i++) {
-                let songKey = playlist.songs[i];
-                getSong(songKey).then(song => { 
-                  buttons[i] = createSongButton(song.name, songKey, key);
-                  numRemaining--;
-                  if (numRemaining == 0) {
-                    button.dropdown.append(...buttons);
-                    dropdown.style.height = dropdown.scrollHeight + "px";
-                    setTimeout(() => {
-                      dropdown.style.height = "auto";
-                      button.dropdownState = "open";
-                    }, 150);
-                  }
-                });
+
+              if (playlist.songs.length === 0) {
+                let emptyText = document.createElement("span");
+                emptyText.innerText = "Empty (drag and drop songs to add)";
+                emptyText.style.backgroundColor = "hsl(300 25% 28%)";
+                emptyText.style.color = "hsl(300 20% 60%)";
+                emptyText.style.textAlign = "center";
+                emptyText.style.fontSize = "10pt";
+                emptyText.style.padding = "5px";
+                dropdown.appendChild(emptyText);
+                setTimeout(() => dropdown.style.height = dropdown.scrollHeight + "px");
+                setTimeout(() => {
+                  dropdown.style.height = "auto";
+                  button.dropdownState = "open";
+                }, 150);
+                dropdown.isEmpty = true;
+              } else {
+                let buttons = Array(playlist.songs.length);
+                let numRemaining = playlist.songs.length;
+                for (let i = 0; i < playlist.songs.length; i++) {
+                  let songKey = playlist.songs[i];
+                  getSong(songKey).then(song => { 
+                    buttons[i] = createSongButton(song.name, songKey, key);
+                    numRemaining--;
+                    if (numRemaining == 0) {
+                      dropdown.append(...buttons);
+                      dropdown.style.height = dropdown.scrollHeight + "px";
+                      setTimeout(() => {
+                        dropdown.style.height = "auto";
+                        button.dropdownState = "open";
+                      }, 150);
+                    }
+                  });
+                }
               }
               button.after(dropdown);
               button.dropdown = dropdown;
@@ -955,8 +974,13 @@
               playlist.songs.push(songKey);
               numSongs.innerText = ` (${playlist.songs.length})`;
 
-              if (button.dropdown)
+              if (button.dropdown) {
+                if (button.dropdown.isEmpty) {
+                  button.dropdown.replaceChildren();
+                  button.dropdown.isEmpty = false;
+                }
                 button.dropdown.appendChild(createSongButton(songName, songKey, key));
+              }
 
               if (currentPlaylistKey === key)
                 currentQueue.push(songKey);
