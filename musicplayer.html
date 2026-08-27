@@ -19,7 +19,7 @@
     }
 
     .popup-button:hover {
-      background-color: hsl(300 10% 50%)
+      background-color: hsl(0 0 20% / 25%)
     }
 
     button {
@@ -41,6 +41,22 @@
       cursor: default;
     }
 
+    .dark-button {
+      background-color: hsl(300, 25%, 28%);
+      color: hsl(300, 20%, 75%);
+    }
+
+    .dark-button:hover {
+      background-color: hsl(300, 25%, 45%);
+      color: hsl(300, 20%, 80%);
+    }
+
+    .dark-button:disabled {
+      background-color: hsl(300, 20%, 21%);
+      color: hsl(300, 20%, 30%);
+      cursor: default;
+    }
+
     input:focus {
       outline: none;
     }
@@ -56,14 +72,41 @@
     input[type="range"] {
       cursor: ew-resize;
     }
+
+    .panel {
+      border: solid;
+      border-color: hsl(270, 20%, 35%); 
+      background-color: hsl(270, 20%, 23%); 
+      border-width: 1px;
+      border-radius: 20px;
+    }
+
+    .dark-input {
+      background-color: hsl(270 20% 16%); 
+      border: none; 
+      border-radius: 3px;
+      font-family: Menlo, monospace; 
+      color: hsl(270, 20%, 85%);
+    }
+
+    .dotted-button {
+      border: dashed; 
+      border-color: hsl(270, 20%, 45%); 
+      background-color: hsl(270, 20%, 28%); 
+      border-width: 1px; 
+      border-radius: 20px;
+    }
+
+    .dotted-button:hover {
+      background-color: hsl(270, 20%, 35%); 
+    }
   </style>
   <body style="font-family: Menlo, monospace; font-size: 11pt; color: hsl(270, 20%, 85%); background-color: hsl(270, 20%, 16%)">
     <div style="display: flex; height: 100%">
-      <div style="flex: 3; min-width: 0">
+      <div style="display: flex; flex-direction: column; flex: 3; min-width: 0">
         <input id=file-input type=file accept="audio/*"/>
-        <br/>
         
-        <div style="position: relative; overflow: hidden; border: solid; border-radius: 20px; border-color: hsl(270, 20%, 35%); background-color: hsl(270, 20%, 23%); border-width: 1px">
+        <div style="flex: 0 0 auto; position: relative; overflow: hidden" class=panel>
           <!-- relative position on inner div makes everything inside scroll with it instead of outer div -->
           <div style="position: relative; width: 100%; height: 200px; overflow-x: clip; scrollbar-width: none;">
             <canvas id=waveform width=6000 height=1000 style="position: relative; left: 0; width: 4000px; height: 100%; overflow-x: hidden;"></canvas>
@@ -125,15 +168,18 @@
           </div>
         </div>
 
-        <div style="position: relative; overflow: hidden; border: solid; border-radius: 20px; border-color: hsl(270, 20%, 35%); background-color: hsl(270, 20%, 23%); border-width: 1px; margin-bottom: 10px">
-          <div style="display: flex; flex-direction: row-reverse; gap: 25px; margin: 10px">            
-            <div style="z-index: 999">
+        <div style="flex: 0 0 auto; position: relative; overflow: hidden; margin-bottom: 10px" class=panel>
+          <canvas id=bins width=2000 height=1000 style="position: relative; width: 100%; height: 200px"></canvas>
+          <p id=frequency-popup style="position: absolute; top: 50px; transform: translateX(-50%); text-wrap: nowrap;"></p>
+
+          <div style="position: absolute; top: 0; width: calc(100% - 20px); display: flex; flex-direction: row-reverse; gap: 25px; padding: 10px">            
+            <div>
               <label id=smoothing-label for=num-bins style="display: block"> Smoothing: 0.00 </label>
               <input id=smoothing type=range min=0 max=1 step=0.01 value=0 style="width: 100%; accent-color: hsl(262, 63%, 68%)">
             </div>
 
             <!-- actually stores log2(numBins) -->
-            <div style="z-index: 999">
+            <div>
               <label id=num-bins-label for=num-bins style="display: block"> # Frequency Bins: 256 </label>
               <input id=num-bins type=range min=4 max=14 value=8 style="width: 100%; accent-color: hsl(262, 63%, 68%)">
             </div>
@@ -143,18 +189,15 @@
               <input id=split-channels type=checkbox>
             </div>
           </div>
-          
-          <canvas id=bins width=2000 height=1000 style="position: relative; width: 100%; height: 200px"></canvas>
-          <p id=frequency-popup style="position: absolute; top: 50px; transform: translateX(-50%); text-wrap: nowrap;"></p>
         </div>
 
-        <div style="margin: 10px; width: 100%">
-          <div id=lyrics style="position: relative; margin-bottom: 20px; overflow-x: scroll; width: 100%; height: 100px; scroll-behavior: smooth;"></div>
-          <div id="lyric-progress-bar" style="visibility: hidden; height: 2px; width: 0; background-color: hsl(270 20% 85% / 50%); border-right: solid; border-color: hsl(270 20% 85%);"></div>
-          <input id=new-lyric type=text style="background-color: hsl(270 20% 13%); border: none; width: 300px; height: 30px; font-family: Menlo, monospace; padding: 5px; color: hsl(270, 20%, 85%)">
+        <div style="display: flex; flex-direction: column; margin: 10px; flex: 1">
+          <div id=lyrics style="flex: 1 0 0; position: relative; margin-bottom: 20px; overflow-x: scroll; scroll-behavior: smooth;"></div>  <!-- relative position for sync scroll -->
+          <div id=lyric-progress-bar style="visibility: hidden; height: 2px; width: 0; background-color: hsl(270 20% 85% / 50%); border-right: solid; border-color: hsl(270 20% 85%);"></div>
           
-          <div style="display: inline-block">
-            <button id="save-lyrics" style="padding: 3px">Save</button>
+          <div>
+            <input id=new-lyric type=text style="background-color: hsl(270 20% 13%); border: none; width: 300px; height: 30px; font-family: Menlo, monospace; padding: 5px; color: hsl(270, 20%, 85%)">
+            <button id=save-lyrics style="padding: 3px">Save</button>
 
             <input id=import-lyrics type=file style="display: none;">
             <button onclick="let l=document.getElementById('import-lyrics'); l.value = null; l.click()" style="padding: 3px">Import Lyrics</button>
@@ -168,10 +211,17 @@
         </div>
       </div>
 
-      <div id=queue style="flex: 1; display: flex; flex-direction: column; min-width: 0; overflow-y: scroll; margin: 20px 0 0 16px; padding: 10px; border: solid; border-radius: 20px; border-color: hsl(270, 20%, 35%); background-color: hsl(270, 20%, 23%); border-width: 1px">
+      <div id=queue style="flex: 1; display: flex; flex-direction: column; min-width: 0; overflow-y: scroll; margin: 20px 0 0 16px; padding: 10px" class=panel>
+        <div style="display: flex; align-items: center; gap: 8px">
+          <span id=playlist-title style="margin: 0; text-wrap: nowrap">Playlists</span>
+        </div>
+        <div id=playlists style="display: flex; flex-direction: column">
+          <button id=create-playlist style="flex: 0 0 auto; min-width: 100px; padding: 6px; margin: 5px" class=dotted-button>Add New</button>
+        </div>
+        
         <div style="display: flex; align-items: center; gap: 8px">
           <span style="margin: 0; text-wrap: nowrap">All Songs</span>
-          <input id="search-song" type=text placeholder="Search song name" style="flex: 1; background-color: hsl(270 20% 16%); border: none; border-radius: 3px; height: 22px; font-family: Menlo, monospace; font-size: 11px; padding: 0 8px 0 8px; color: hsl(270, 20%, 85%)">
+          <input id=search-song type=text placeholder="Search song name" style="flex: 1; height: 22px; font-size: 11px; padding: 0 8px 0 8px" class=dark-input>
         </div>
 
         <div id=all-songs style="display: flex; flex-direction: column">
@@ -204,10 +254,51 @@
       let allSongsContainer = document.getElementById("all-songs");
       let allSongs = [];
 
+      // my pride and joy
+      class GlobalEvent {
+        listeners = new Map();
+        observer = new MutationObserver(mutations => {
+          for (let mutation of mutations)
+            if (mutation.type === "childList") {
+              let removedNodes = mutation.removedNodes;
+              if (removedNodes.length == 0)
+                continue;
+              for (let removedNode of removedNodes)
+                if (removedNode instanceof Element) {
+                  this.listeners.delete(removedNode);
+
+                  for (let child of removedNode.querySelectorAll("*"))
+                    this.listeners.delete(child);
+                }
+            }
+        });
+        
+        constructor(scope) {
+          this.observer.observe(scope, { attributes: false, childList: true, subtree: true });
+        }
+        
+        addListener(element, listener) {
+          this.listeners.set(element, listener);
+        }
+
+        invoke(...args) {
+          for (let [element, listener] of this.listeners)
+            listener(...args);
+        }
+      }
+
       let mouseX = 0;
       let mouseY = 0;
 
       let fileName = null;
+      let currentSongKey = null;
+      let currentQueue = null;
+      let currentPlaylistKey = null;
+      let onSongChange = new GlobalEvent(queue);
+      let onSongRename = new GlobalEvent(queue);
+      let onSongDelete = new GlobalEvent(queue);
+      let onPlaylistUpdate = new GlobalEvent(queue);
+
       let stepWidth = 2;
       let scroll = 0;
       let idealWaveformWidth = 4000;
@@ -331,21 +422,196 @@
         return database.transaction(["songs"], "readwrite").objectStore("songs");
       }
 
+      function readPlaylists() {
+        return database.transaction(["playlists"], "readonly").objectStore("playlists");
+      }
+
+      function readWritePlaylists() {
+        return database.transaction(["playlists"], "readwrite").objectStore("playlists");
+      }
+
+      function getSong(key) {
+        return new Promise((resolve) => {
+          let request = readSongs().get(key);
+          request.onsuccess = () => resolve(request.result);
+        });
+      }
+
+      function getAllSongs() {
+        return new Promise((resolve) => {
+          let transaction = readSongs();
+          let request = transaction.openCursor();
+          let songs = [];
+          request.onsuccess = () => {
+            let cursor = request.result;
+            if (cursor) {
+              songs.push([cursor.key, cursor.value]);
+              cursor.continue();
+            } else
+              resolve(songs);
+          };
+        });
+      }
+
+      function addSong(song) {
+        return new Promise((resolve) => {
+          let request = readWriteSongs().put(song);
+          request.onsuccess = () => resolve(request.result);
+        })
+      }
+
+      function updateSong(key, updater) {
+        return new Promise((resolve) => {
+          let transaction = readWriteSongs();
+          let getRequest = transaction.get(key);
+          getRequest.onsuccess = () => {
+            let putRequest = transaction.put(updater(getRequest.result), key);
+            putRequest.onsuccess = () => resolve();
+          };
+        })
+      }
+
+      function getPlaylist(key) {
+        return new Promise((resolve) => {
+          let request = readPlaylists().get(key);
+          request.onsuccess = () => resolve(request.result);
+        });
+      }
+
+      function getAllPlaylists() {
+        return new Promise((resolve) => {
+          let transaction = readPlaylists();
+          let request = transaction.openCursor();
+          let playlists = [];
+          request.onsuccess = () => {
+            let cursor = request.result;
+            if (cursor) {
+              playlists.push([cursor.key, cursor.value]);
+              cursor.continue();
+            } else
+              resolve(playlists);
+          };
+        });
+      }
+
+      function addPlaylist(playlist) {
+        return new Promise((resolve) => {
+          let request = readWritePlaylists().put(playlist);
+          request.onsuccess = () => resolve(request.result);
+        })
+      }
+
+      function updatePlaylist(key, updater) {
+        return new Promise((resolve) => {
+          let transaction = readWritePlaylists();
+          let getRequest = transaction.get(key);
+          getRequest.onsuccess = () => {
+            let putRequest = transaction.put(updater(getRequest.result), key);
+            putRequest.onsuccess = () => resolve();
+          };
+        })
+      }
+
+      function updateAllPlaylists(updater) {
+        return new Promise((resolve) => {
+          let transaction = readWritePlaylists();
+          let request = transaction.openCursor();
+          request.onsuccess = () => {
+            let cursor = request.result;
+            if (cursor) {
+              cursor.update(updater(cursor.value));
+              cursor.continue();
+            } else
+              resolve();
+          };
+        });
+      }
+
       databaseRequest.onsuccess = event => {
         database = event.target.result;
 
-        let songs = readSongs();
-        let allSongs = songs.getAll();
-        allSongs.onsuccess = () => {
-          for (let song of allSongs.result)
-            addNewSong(song.name);
-        }
+        getAllSongs().then(entries => {
+          for (let [key, value] of entries)
+            addNewSong(value.name, key);
+        });
+
+        getAllPlaylists().then(entries => {
+          for (let [key, value] of entries)
+            showPlaylist(value, key);
+        });
       };
 
       databaseRequest.onupgradeneeded = event => {
         database = event.target.result;
-        objectStore = database.createObjectStore("songs", { keyPath: "name" });
+        let songs = database.createObjectStore("songs", { autoIncrement: true });
+        songs.createIndex("name", "name");
+        database.createObjectStore("playlists", { autoIncrement: true });
       };
+
+      function showEnterTextPrompt(title, value, onConfirm) {
+        let prompt = document.createElement("div");
+        prompt.classList.add("panel");
+        prompt.style.display = "flex";
+        prompt.style.flexDirection = "column";
+        prompt.style.gap = "6px";
+        prompt.style.boxShadow = "0 0 10px rgb(0 0 0 / 25%)";
+        prompt.style.padding = "25px";
+        prompt.style.width = "400px";
+        prompt.style.height = "100px";
+        prompt.style.position = "absolute";
+        prompt.style.left = "50%";
+        prompt.style.top = "50%";
+        prompt.style.transform = "translate(-50%, -50%)";
+
+        let text = document.createElement("span");
+        text.innerText = title;
+        prompt.appendChild(text);
+
+        let input = document.createElement("input");
+        input.value = value;
+        input.classList.add("dark-input");
+        input.style.fontSize = "11pt";
+        input.style.padding = "5px";
+        prompt.appendChild(input);
+
+        let buttonRow = document.createElement("div");
+        buttonRow.style.display = "flex";
+        buttonRow.style.gap = "6px";
+
+        let confirm = document.createElement("button");
+        confirm.innerText = "Confirm";
+        confirm.style.flex = "1";
+        confirm.style.padding = "6px";
+        confirm.disabled = input.value.trim().length == 0;
+        confirm.onclick = () => {
+          onConfirm(input.value.trim());
+          prompt.remove();
+        };
+        buttonRow.appendChild(confirm);
+
+        input.oninput = event => confirm.disabled = input.value.trim().length == 0;
+        input.onkeypress = event => {
+          if (event.key === "Enter" || event.keyCode === 13) {
+            let value = input.value.trim();
+            if (value.length !== 0) {
+              onConfirm(value);
+              prompt.remove();
+            }
+          }
+        }
+
+        let cancel = document.createElement("button");
+        cancel.innerText = "Cancel";
+        cancel.style.flex = "1";
+        cancel.style.padding = "6px";
+        cancel.onclick = () => prompt.remove();
+        buttonRow.appendChild(cancel);
+
+        prompt.appendChild(buttonRow);
+
+        document.body.appendChild(prompt);
+        input.focus();
+      }
 
       function resample(samples, startIndex, originalLength, newLength) {
         let resampled = new Float32Array(newLength);
@@ -580,26 +846,24 @@
       function handleFileInput(file) {
         let reader = new FileReader();
         reader.readAsArrayBuffer(file);
-        reader.onload = () => {
+        reader.onload = async () => {
+          currentPlaylistKey = null;
           let data = reader.result.slice(0);
-          loadSong(reader.result, file.name);
-
-          let songs = readWriteSongs();
-          let cursor = songs.openCursor(file.name);
-          cursor.onsuccess = event => {
-            if (!event.target.result)
-              addNewSong(file.name);
-            songs.put({name: file.name, data: data});
-          };
+          let key = await addSong({name: file.name, data: data});
+          loadSong(reader.result, file.name, key);
+          addNewSong(file.name, key);
         };
       }
 
-      async function loadSong(data, name) {
+      async function loadSong(data, name, key) {
         let audioBuffer = await audioContext.decodeAudioData(data);
 
         playButton.disabled = false;
         restartButton.disabled = false;
         fileName = name;
+        if (key !== currentSongKey)
+          onSongChange.invoke(key);
+        currentSongKey = key;
         document.title = name;
 
         if (didStartPlaying && pausedStartTimestamp == null)
@@ -627,172 +891,356 @@
         calculateGroupedSamples();
       }
 
-      function showSong(name) {
-        let container = document.createElement("button");
-        container.style.display = "flex";
-        container.style.overflow = "clip";
-        container.style.borderRadius = "0";
-        container.style.alignItems = "center";
-        container.style.gap = "5px";
+      function showPlaylist(playlist, key) {
+        let button = document.createElement("button");
+        button.style.padding = "3px 5px 3px 5px";
+        button.style.borderRadius = "0";
+        button.style.flex = "1";
+        button.style.textAlign = "left";
+        button.style.overflowWrap = "break-word";
+        button.dropdownState = "closed";
 
-        let title = document.createElement("textarea");
-        title.readOnly = true;
-        title.value = name;
-        title.oldValue = name;
-        title.rows = 1;
-        title.style.resize = "none";
-        title.style.cursor = "pointer";
-        title.style.backgroundColor = "transparent";
-        title.style.border = "none";
-        title.style.fontFamily = "Menlo, monospace";
-        title.style.color = "hsl(270 20% 85%)"
-        title.style.alignContent = "start";
-        title.style.margin = "0";
-        title.style.textOverflow = "ellipsis";
-        title.style.overflow = "hidden";
-        title.style.whiteSpace = "nowrap";
-        title.style.flex = "1";
-        title.style.textAlign = "start";
-        title.addEventListener("keydown", event => {
-          if (event.key === "Enter" || event.keyCode === 13) {
-            event.preventDefault();
-            title.blur();
-          }
+        let title = document.createElement("span");
+        title.innerText = playlist.name;
+        button.appendChild(title);
+
+        let numSongs = document.createElement("span");
+        numSongs.innerText = ` (${playlist.songs.length})`;
+        numSongs.style.opacity = 0.6;
+        button.appendChild(numSongs);
+
+        let playlists = document.getElementById("playlists");
+        playlists.insertBefore(button, document.getElementById("create-playlist"));
+
+        onPlaylistUpdate.addListener(title, (targetPlaylistKey, newPlaylist) => {
+          if (targetPlaylistKey === key)
+            numSongs.innerText = ` (${newPlaylist.songs.length})`;
         });
-        title.addEventListener("blur", event => {
-          title.readOnly = true;
-          allSongs[allSongs.indexOf(title.oldValue)] = title.value;
-          let songs = readWriteSongs();
-          let songGetRequest = songs.get(title.oldValue);
-          songGetRequest.onsuccess = () => {
-            songs.delete(title.oldValue);
-            let song = songGetRequest.result;
-            song.name = title.value;
-            songs.put(song);
-            title.oldValue = title.value;
-          };
-        });
-        
-        container.appendChild(title);
-        container.oncontextmenu = event => {
-          event.preventDefault();
-          
-          let menu = document.createElement("div");
-          menu.tabIndex = 0;
-          menu.style.display = "flex";
-          menu.style.flexDirection = "column";
-          menu.style.backdropFilter = "blur(32px) saturate(35%) brightness(180%)";
-          menu.style.boxShadow = "0 0 10px rgb(0 0 0 / 25%)"
-          menu.style.border = "1px solid hsl(300 15% 100% / 20%)"
-          menu.style.borderRadius = "5px";
-          menu.style.overflow = "clip";
-          menu.style.maxWidth = "250px";
 
-          let songName = document.createElement("p");
-          songName.textContent = name;
-          songName.style.textWrap = "nowrap";
-          songName.style.textOverflow = "ellipsis";
-          songName.style.overflow = "hidden";
-          songName.style.margin = "0 4px 0 4px";
-          songName.style.color = "rgb(80 80 80)";
-          songName.style.fontSize = "12px";
-          menu.appendChild(songName);
+        button.onclick = async () => {
+          switch (button.dropdownState) {
+            case "closed":
+              let dropdown = document.createElement("div");
+              dropdown.style.display = "flex";
+              dropdown.style.flexDirection = "column";
+              dropdown.style.height = "0";
+              dropdown.style.transition = "height 0.15s ease-out";
+              dropdown.style.flex = "0 0 auto";
+              dropdown.style.overflow = "clip";
+              dropdown.ondrop = button.ondrop;
 
-          let renameButton = document.createElement("button");
-          renameButton.textContent = "Rename";
-          renameButton.classList.add("popup-button");
-          renameButton.onclick = event => {
-            title.readOnly = false;
-            menu.onblur = null;
-            title.focus();
-          }
-          menu.appendChild(renameButton);
+              let playlist = await getPlaylist(key);
+              if (!playlist) {
+                console.error(`playlist with key ${key} not found in database`);
+                break;
+              }
 
-          let deleteButton = document.createElement("button");
-          deleteButton.classList.add("popup-button");
-          deleteButton.textContent = "Delete";
-          deleteButton.style.color = "red";
-          deleteButton.onclick = event => {
-            allSongs.splice(allSongs.indexOf(title.value));
-            readWriteSongs().delete(title.value);
-            container.remove();
-            menu.onblur = null;
-          }
-          menu.appendChild(deleteButton);
+              let emptyText = document.createElement("span");
+              emptyText.innerText = "Empty (drag and drop songs to add)";
+              emptyText.style.backgroundColor = "hsl(300 25% 28%)";
+              emptyText.style.color = "hsl(300 20% 60%)";
+              emptyText.style.textAlign = "center";
+              emptyText.style.fontSize = "10pt";
+              emptyText.style.padding = "5px";
+              onPlaylistUpdate.addListener(emptyText, (targetPlaylistKey, newPlaylist) => {
+                console.log("test");
+                if (targetPlaylistKey === key)
+                  emptyText.style.display = newPlaylist.songs.length === 0 ? "inline" : "none";
+              })
+              dropdown.appendChild(emptyText);
 
-          menu.style.position = "absolute";
-          menu.style.top = mouseY + 5;
+              if (playlist.songs.length === 0) {
+                setTimeout(() => dropdown.style.height = dropdown.scrollHeight + "px");
+                setTimeout(() => {
+                  dropdown.style.height = "auto";
+                  button.dropdownState = "open";
+                }, 150);
+                dropdown.isEmpty = true;
+              } else {
+                emptyText.style.display = "none";
 
-          document.body.appendChild(menu);
-          menu.style.left = Math.min(mouseX, document.body.clientWidth - menu.scrollWidth - 5);
-          menu.focus();
-          window.addEventListener("click", event => menu.remove());
-        }
-        container.onclick = event => {
-          if (event.pointerId == -1)
-            return;
-          let songs = readSongs();
-          let songRequest = songs.get(name);
-          songRequest.onsuccess = async () => {
-            container.disabled = true;
-
-            if (queue.previousPlaying) {
-              queue.previousPlaying.parentElement.disabled = false;
-              queue.previousPlaying.nextElementSibling?.remove();
-              queue.previousPlaying.remove();
-            }
+                let buttons = Array(playlist.songs.length);
+                let numRemaining = playlist.songs.length;
+                for (let i = 0; i < playlist.songs.length; i++) {
+                  let songKey = playlist.songs[i];
+                  getSong(songKey).then(song => { 
+                    buttons[i] = createSongButton(song.name, songKey, key);
+                    numRemaining--;
+                    if (numRemaining == 0) {
+                      dropdown.append(...buttons);
+                      dropdown.style.height = dropdown.scrollHeight + "px";
+                      setTimeout(() => {
+                        dropdown.style.height = "auto";
+                        button.dropdownState = "open";
+                      }, 150);
+                    }
+                  });
+                }
+              }
+              button.after(dropdown);
+              button.dropdown = dropdown;
+              button.dropdownState = "animating";
+              break;
             
-            let nowPlaying = document.createElement("span");
-            nowPlaying.textContent = "♫";
-            nowPlaying.style.fontSize = "13px";
-            nowPlaying.style.fontWeight = "bold";
-            nowPlaying.style.fontFamily = "sans-serif";
-
-            container.appendChild(nowPlaying);
-            queue.previousPlaying = nowPlaying;
-
-            lyricsContainer.replaceChildren();
-            lyrics = songRequest.result.lyrics ?? [];
-            lyrics.forEach(line => lyricsContainer.appendChild(createLyricLine(line.text)));
-            
-            if (lyrics.length > 0) {
-              let lyricsIcon = document.createElement("span");
-              lyricsIcon.textContent = "☴";
-              lyricsIcon.style.fontSize = "18px";
-              lyricsIcon.style.transform = "translateY(-0.5px)";
-              container.appendChild(lyricsIcon);
-            }
-
-            await loadSong(songRequest.result.data, name);
-            startPlaying();
-          };
+            case "open":
+              button.dropdown.style.height = button.dropdown.scrollHeight + "px";
+              setTimeout(() => button.dropdown.style.height = "0");
+              setTimeout(() => {
+                button.dropdown.remove();
+                button.dropdown = null;
+                button.dropdownState = "closed";
+              }, 150);
+              button.dropdownState = "animating";
+              break;
+          }
         };
 
-        if (document.title == name) {
-          container.disabled = true;
-          let nowPlaying = document.createElement("span");
-          nowPlaying.textContent = "♫";
-          nowPlaying.style.fontSize = "13px";
-          nowPlaying.style.fontWeight = "bold";
-          nowPlaying.style.fontFamily = "sans-serif";
-          container.appendChild(nowPlaying);
-          queue.previousPlaying = nowPlaying;
+        button.ondrop = event => {
+          let songName = event.dataTransfer.getData("song-name");
+          let songKey = parseInt(event.dataTransfer.getData("song-key"));
 
+          updatePlaylist(key, playlist => {
+            if (!playlist.songs.includes(songKey)) {
+              playlist.songs.push(songKey);
+
+              if (button.dropdown) {
+                if (button.dropdown.isEmpty) {
+                  button.dropdown.replaceChildren();
+                  button.dropdown.isEmpty = false;
+                }
+                button.dropdown.appendChild(createSongButton(songName, songKey, key));
+              }
+
+              if (currentPlaylistKey === key)
+                currentQueue.push(songKey);
+
+              onPlaylistUpdate.invoke(key, playlist);
+            }
+            return playlist;
+          });
+        }
+
+        button.oncontextmenu = event => {
+          event.preventDefault();
+          let menu = showContextMenu(title.innerText);
+
+          menu.addButton("Rename").onclick = () => {
+            showEnterTextPrompt("Rename Playlist", title.innerText, newName => {
+              updatePlaylist(key, playlist => {
+                playlist.name = newName;
+                return playlist;
+              });
+              title.innerText = newName;
+            });
+          }
+
+          menu.addButton("Delete", "red").onclick = event => {
+            readWritePlaylists().delete(key);
+            if (currentPlaylistKey === key) {
+              currentPlaylistKey = null;
+              currentQueue = null;
+            }
+            button.dropdown?.remove();
+            button.remove();
+          }
+        }
+      }
+
+      function showContextMenu(title) {
+        let menu = document.createElement("div");
+        menu.tabIndex = 0;
+        menu.style.display = "flex";
+        menu.style.flexDirection = "column";
+        menu.style.backdropFilter = "blur(12px) contrast(30%) brightness(180%)";
+        menu.style.boxShadow = "0 0 10px rgb(0 0 0 / 25%)"
+        menu.style.border = "1px solid hsl(300 15% 100% / 20%)"
+        menu.style.borderRadius = "5px";
+        menu.style.overflow = "clip";
+        menu.style.maxWidth = "250px";
+        menu.style.minWidth = "100px";
+
+        let menuTitle = document.createElement("p");
+        menuTitle.textContent = title;
+        menuTitle.style.textAlign = "center";
+        menuTitle.style.textWrap = "nowrap";
+        menuTitle.style.textOverflow = "ellipsis";
+        menuTitle.style.overflow = "hidden";
+        menuTitle.style.margin = "1px 4px 0 4px";
+        menuTitle.style.color = "rgb(70 70 70)";
+        menuTitle.style.fontSize = "12px";
+        menu.appendChild(menuTitle);
+
+        let divider = document.createElement("hr");
+        divider.style.margin = "2px 12px 2px 12px";
+        divider.style.border = "solid 0.25px";
+        divider.style.color = "rgb(100 100 100 / 20%)";
+        menu.appendChild(divider);
+
+        menu.style.position = "absolute";
+        menu.style.top = mouseY - 17;
+
+        document.body.appendChild(menu);
+        menu.style.left = Math.min(mouseX - 20, document.body.clientWidth - menu.scrollWidth - 5);
+        menu.focus();
+        window.addEventListener("click", event => menu.remove());
+
+        menu.addButton = (name, color) => {
+          let button = document.createElement("button");
+          button.classList.add("popup-button");
+          button.textContent = name;
+          if (color !== undefined)
+            button.style.color = color;
+          menu.appendChild(button);
+          return button;
+        }
+        
+        return menu;
+      }
+
+      function createSongButton(songName, songKey, playlistKey) {
+        let songButton = document.createElement("button");
+        if (playlistKey !== undefined)
+          songButton.classList.add("dark-button");
+        songButton.style.display = "flex";
+        songButton.style.flex = "0 0 auto";
+        songButton.style.overflow = "clip";
+        songButton.style.borderRadius = "0";
+        songButton.style.alignItems = "center";
+        songButton.style.gap = "5px";
+        songButton.draggable = true;
+        songButton.ondragstart = event => {
+          event.dataTransfer.setData("song-name", songName);
+          event.dataTransfer.setData("song-key", songKey);
+        };
+
+        let title = document.createElement("span");
+        title.innerText = songName;
+        title.style.flex = "1";
+        title.style.textAlign = "left";
+        title.style.whiteSpace = "nowrap";
+        title.style.overflow = "hidden";
+        title.style.textOverflow = "ellipsis";
+        songButton.appendChild(title);
+
+        onSongRename.addListener(songButton, (targetSongKey, newName) => {
+          if (targetSongKey === songKey)
+            title.innerText = newName;
+        });
+
+        onSongDelete.addListener(songButton, (targetSongKey) => {
+          if (targetSongKey === songKey)
+            songButton.remove();
+        });
+
+        if (lyrics.length > 0) {
+          let lyricsIcon = document.createElement("span");
+          lyricsIcon.textContent = "☴";
+          lyricsIcon.style.fontSize = "18px";
+          lyricsIcon.style.transform = "translateY(-0.5px)";
+          songButton.appendChild(lyricsIcon);
+        }
+
+        let nowPlaying = document.createElement("span");
+        nowPlaying.textContent = "(Playing)";
+        if (currentSongKey === songKey) {
+          songButton.appendChild(nowPlaying);
+          songButton.disabled = true;
+        }
+        onSongChange.addListener(songButton, newSongKey => {
+          if (newSongKey === songKey) {
+            songButton.appendChild(nowPlaying);
+            songButton.disabled = true;
+          } else {
+            nowPlaying.remove();
+            songButton.disabled = false;
+          }
+        });
+
+        songButton.oncontextmenu = event => {
+          event.preventDefault();
+          let menu = showContextMenu(title.innerText);
+
+          menu.addButton("Rename").onclick = () => {
+            showEnterTextPrompt("Rename Song", title.innerText, newName => {
+              updateSong(songKey, song => {
+                song.name = newName;
+                return song;
+              });
+              onSongRename.invoke(songKey, newName);
+            });
+          }
+
+          if (playlistKey !== undefined) {
+            menu.addButton("Remove from playlist").onclick = () => {
+              updatePlaylist(playlistKey, playlist => {
+                playlist.songs.splice(playlist.songs.indexOf(songKey), 1);
+                onPlaylistUpdate.invoke(playlistKey, playlist);
+                songButton.remove();
+                if (currentPlaylistKey === playlistKey) {
+                  let songIndex = currentQueue.indexOf(songKey);
+                  if (songIndex !== -1)
+                    currentQueue.splice(songIndex, 1);
+                }
+                return playlist;
+              });
+            }
+          }
+
+          menu.addButton("Delete", "red").onclick = event => {
+            readWriteSongs().delete(songKey);
+            updateAllPlaylists(playlist => {
+              let songIndex = playlist.songs.indexOf(songKey);
+              if (songIndex !== -1) {
+                playlist.songs.splice(songIndex, 1);
+                onPlaylistUpdate.invoke(playlistKey, playlist);
+              }
+              return playlist;
+            });
+            onSongDelete.invoke(songKey);
+            let songIndex = currentQueue?.indexOf(songKey) ?? -1;
+            if (songIndex !== -1)
+              currentQueue.splice(songIndex, 1);
+          }
+        }
+        
+        songButton.onclick = async event => {
+          if (event.pointerId == -1)
+            return;
+
+          if (playlistKey === undefined) 
+            currentPlaylistKey = null;
+          else {
+            let playlist = await getPlaylist(playlistKey);
+            let currentIndex = playlist.songs.indexOf(songKey);
+            currentQueue = playlist.songs.splice(currentIndex + 1);
+            console.log(playlistKey);
+            currentPlaylistKey = playlistKey;
+          } 
+
+          let song = await getSong(songKey);
+
+          lyricsContainer.replaceChildren();
+          lyrics = song.lyrics ?? [];
+          lyrics.forEach(line => lyricsContainer.appendChild(createLyricLine(line.text)));
+          
           if (lyrics.length > 0) {
             let lyricsIcon = document.createElement("span");
             lyricsIcon.textContent = "☴";
             lyricsIcon.style.fontSize = "18px";
             lyricsIcon.style.transform = "translateY(-0.5px)";
-            container.appendChild(lyricsIcon);
+            songButton.appendChild(lyricsIcon);
           }
-        }
 
-        allSongsContainer.appendChild(container);
+          await loadSong(song.data, songName, songKey);
+          startPlaying();
+        };
+
+        return songButton;
       }
 
-      function addNewSong(name) {
-        allSongs.push({name: name, hasLyrics: false});
-        showSong(name);
+      function addNewSong(name, key) {
+        allSongs.push({name: name, key: key, hasLyrics: false});
+        allSongsContainer.appendChild(createSongButton(name, key));
       }
 
       function startPlaying(time = 0) {
@@ -963,6 +1411,14 @@
           if (isLooping) {
             scroll = 0;
             startPlaying();
+          } else if (currentQueue) {
+            let nextKey = currentQueue.shift();
+            if (nextKey !== undefined)
+              getSong(nextKey).then(async nextSong => {
+                await loadSong(nextSong.data, nextSong.name, nextKey);
+                startPlaying();
+                scroll = 0;
+              });
           }
           return;
         }
@@ -1292,25 +1748,24 @@
         }
       });
 
-      document.getElementById("save-lyrics").addEventListener("click", event => {
-        let songs = readWriteSongs();
-        let songRequest = songs.get(fileName);
-        songRequest.onsuccess = () => {
-          songs.put({name: fileName, data: songRequest.result.data, lyrics: lyrics});
-          if (lyrics.length == 0)
+      document.getElementById("save-lyrics").addEventListener("click", async event => {
+        await updateSong(currentSongKey, song => {
+          song.lyrics = lyrics;
+          return song;
+        });
+        if (lyrics.length == 0)
             return;
-          let songIndex = allSongs.findIndex(s => s.name == fileName);
-          let song = allSongs[songIndex];
-          if (!song.hasLyrics) {
-            song.hasLyrics = true;
-            let container = allSongsContainer.children[songIndex];
-            let lyricsIcon = document.createElement("span");
-            lyricsIcon.textContent = "☴";
-            lyricsIcon.style.fontSize = "18px";
-            lyricsIcon.style.transform = "translateY(-0.5px)";
-            container.appendChild(lyricsIcon);
-          }
-        };
+        let songIndex = allSongs.findIndex(s => s.key == currentSongKey);
+        let song = allSongs[songIndex];
+        if (!song.hasLyrics) {
+          song.hasLyrics = true;
+          let container = allSongsContainer.children[songIndex];
+          let lyricsIcon = document.createElement("span");
+          lyricsIcon.textContent = "☴";
+          lyricsIcon.style.fontSize = "18px";
+          lyricsIcon.style.transform = "translateY(-0.5px)";
+          container.appendChild(lyricsIcon);
+        }
       });
 
       document.getElementById("export-lyrics").addEventListener("click", event => {
@@ -1358,6 +1813,8 @@
       window.addEventListener("drop", event => {
         event.preventDefault();
         let input = document.getElementById("file-input");
+        if (event.dataTransfer.files.length == 0)
+          return;
         input.files = event.dataTransfer.files;
         handleFileInput(input.files[0]);
       });
@@ -1376,8 +1833,15 @@
         let matches = allSongs.filter(song => search.test(song.name));
         allSongsContainer.replaceChildren();
         for (let match of matches)
-          showSong(match.name);
-      })
+          allSongsContainer.appendChild(createSongButton(match.name, match.key));
+      });
+
+      document.getElementById("create-playlist").addEventListener("click", event => {
+        showEnterTextPrompt("Enter Playlist Name", "", async text => {
+          let key = await addPlaylist({name: text, songs: []});
+          showPlaylist({name: text, songs: []}, key);
+        });
+      });
     </script>
   </body>
 </html>
