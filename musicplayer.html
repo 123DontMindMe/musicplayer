@@ -1019,6 +1019,82 @@
             return playlist;
           });
         }
+
+        button.oncontextmenu = event => {
+          event.preventDefault();
+          let menu = showContextMenu(title.innerText);
+
+          menu.addButton("Rename").onclick = () => {
+            showEnterTextPrompt("Rename Playlist", title.innerText, newName => {
+              updatePlaylist(key, playlist => {
+                playlist.name = newName;
+                return playlist;
+              });
+              title.innerText = newName;
+            });
+          }
+
+          menu.addButton("Delete", "red").onclick = event => {
+            readWritePlaylists().delete(key);
+            if (currentPlaylistKey === key) {
+              currentPlaylistKey = null;
+              currentQueue = null;
+            }
+            button.dropdown?.remove();
+            button.remove();
+          }
+        }
+      }
+
+      function showContextMenu(title) {
+        let menu = document.createElement("div");
+        menu.tabIndex = 0;
+        menu.style.display = "flex";
+        menu.style.flexDirection = "column";
+        menu.style.backdropFilter = "blur(12px) contrast(30%) brightness(180%)";
+        menu.style.boxShadow = "0 0 10px rgb(0 0 0 / 25%)"
+        menu.style.border = "1px solid hsl(300 15% 100% / 20%)"
+        menu.style.borderRadius = "5px";
+        menu.style.overflow = "clip";
+        menu.style.maxWidth = "250px";
+        menu.style.minWidth = "100px";
+
+        let menuTitle = document.createElement("p");
+        menuTitle.textContent = title;
+        menuTitle.style.textAlign = "center";
+        menuTitle.style.textWrap = "nowrap";
+        menuTitle.style.textOverflow = "ellipsis";
+        menuTitle.style.overflow = "hidden";
+        menuTitle.style.margin = "1px 4px 0 4px";
+        menuTitle.style.color = "rgb(70 70 70)";
+        menuTitle.style.fontSize = "12px";
+        menu.appendChild(menuTitle);
+
+        let divider = document.createElement("hr");
+        divider.style.margin = "2px 12px 2px 12px";
+        divider.style.border = "solid 0.25px";
+        divider.style.color = "rgb(100 100 100 / 20%)";
+        menu.appendChild(divider);
+
+        menu.style.position = "absolute";
+        menu.style.top = mouseY - 17;
+
+        document.body.appendChild(menu);
+        menu.style.left = Math.min(mouseX - 20, document.body.clientWidth - menu.scrollWidth - 5);
+        menu.focus();
+        window.addEventListener("click", event => menu.remove());
+
+        menu.addButton = (name, color) => {
+          let button = document.createElement("button");
+          button.classList.add("popup-button");
+          button.textContent = name;
+          if (color !== undefined)
+            button.style.color = color;
+          menu.appendChild(button);
+          return button;
+        }
+        
+        return menu;
       }
 
       function createSongButton(songName, songKey, playlistKey) {
@@ -1082,40 +1158,9 @@
 
         songButton.oncontextmenu = event => {
           event.preventDefault();
-          
-          let menu = document.createElement("div");
-          menu.tabIndex = 0;
-          menu.style.display = "flex";
-          menu.style.flexDirection = "column";
-          menu.style.backdropFilter = "blur(12px) contrast(30%) brightness(180%)";
-          menu.style.boxShadow = "0 0 10px rgb(0 0 0 / 25%)"
-          menu.style.border = "1px solid hsl(300 15% 100% / 20%)"
-          menu.style.borderRadius = "5px";
-          menu.style.overflow = "clip";
-          menu.style.maxWidth = "250px";
-          menu.style.minWidth = "100px";
+          let menu = showContextMenu(title.innerText);
 
-          let menuTitle = document.createElement("p");
-          menuTitle.textContent = title.innerText;
-          menuTitle.style.textAlign = "center";
-          menuTitle.style.textWrap = "nowrap";
-          menuTitle.style.textOverflow = "ellipsis";
-          menuTitle.style.overflow = "hidden";
-          menuTitle.style.margin = "1px 4px 0 4px";
-          menuTitle.style.color = "rgb(70 70 70)";
-          menuTitle.style.fontSize = "12px";
-          menu.appendChild(menuTitle);
-
-          let divider = document.createElement("hr");
-          divider.style.margin = "2px 12px 2px 12px";
-          divider.style.border = "solid 0.25px";
-          divider.style.color = "rgb(100 100 100 / 20%)";
-          menu.appendChild(divider);
-
-          let renameButton = document.createElement("button");
-          renameButton.textContent = "Rename";
-          renameButton.classList.add("popup-button");
-          renameButton.onclick = () => {
+          menu.addButton("Rename").onclick = () => {
             showEnterTextPrompt("Rename Song", title.innerText, newName => {
               updateSong(songKey, song => {
                 song.name = newName;
@@ -1124,13 +1169,9 @@
               onSongRename.invoke(songKey, newName);
             });
           }
-          menu.appendChild(renameButton);
 
           if (playlistKey !== undefined) {
-            let removeButton = document.createElement("button");
-            removeButton.classList.add("popup-button");
-            removeButton.textContent = "Remove from playlist";
-            removeButton.onclick = () => {
+            menu.addButton("Remove from playlist").onclick = () => {
               updatePlaylist(playlistKey, playlist => {
                 playlist.songs.splice(playlist.songs.indexOf(songKey), 1);
                 onPlaylistUpdate.invoke(playlistKey, playlist);
@@ -1143,14 +1184,9 @@
                 return playlist;
               });
             }
-            menu.appendChild(removeButton);
           }
 
-          let deleteButton = document.createElement("button");
-          deleteButton.classList.add("popup-button");
-          deleteButton.textContent = "Delete";
-          deleteButton.style.color = "red";
-          deleteButton.onclick = event => {
+          menu.addButton("Delete", "red").onclick = event => {
             readWriteSongs().delete(songKey);
             updateAllPlaylists(playlist => {
               let songIndex = playlist.songs.indexOf(songKey);
@@ -1164,17 +1200,7 @@
             let songIndex = currentQueue?.indexOf(songKey) ?? -1;
             if (songIndex !== -1)
               currentQueue.splice(songIndex, 1);
-            menu.onblur = null;
           }
-          menu.appendChild(deleteButton);
-
-          menu.style.position = "absolute";
-          menu.style.top = mouseY - 17;
-
-          document.body.appendChild(menu);
-          menu.style.left = Math.min(mouseX - 20, document.body.clientWidth - menu.scrollWidth - 5);
-          menu.focus();
-          window.addEventListener("click", event => menu.remove());
         }
         
         songButton.onclick = async event => {
