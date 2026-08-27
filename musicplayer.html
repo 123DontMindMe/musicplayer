@@ -572,7 +572,16 @@
         };
         buttonRow.appendChild(confirm);
 
-        input.oninput = () => confirm.disabled = input.value.trim().length == 0;
+        input.oninput = event => confirm.disabled = input.value.trim().length == 0;
+        input.onkeypress = event => {
+          if (event.key === "Enter" || event.keyCode === 13) {
+            let value = input.value.trim();
+            if (value.length !== 0) {
+              onConfirm(value);
+              prompt.remove();
+            }
+          }
+        }
 
         let cancel = document.createElement("button");
         cancel.innerText = "Cancel";
@@ -1069,10 +1078,10 @@
           menu.appendChild(deleteButton);
 
           menu.style.position = "absolute";
-          menu.style.top = mouseY + 5;
+          menu.style.top = mouseY - 17;
 
           document.body.appendChild(menu);
-          menu.style.left = Math.min(mouseX, document.body.clientWidth - menu.scrollWidth - 5);
+          menu.style.left = Math.min(mouseX - 20, document.body.clientWidth - menu.scrollWidth - 5);
           menu.focus();
           window.addEventListener("click", event => menu.remove());
         }
