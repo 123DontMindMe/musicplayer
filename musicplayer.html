@@ -304,7 +304,8 @@
       let currentSongKey = null;
       let currentQueue = null;
       let currentPlaylistKey = null;
-      let onSongChange = new GlobalEvent(queue);
+      let currentPlaylistName = null;
+      let onSongPlay = new GlobalEvent(queue);
       let onSongRename = new GlobalEvent(queue);
       let onSongDelete = new GlobalEvent(queue);
       let onPlaylistUpdate = new GlobalEvent(queue);
@@ -858,6 +859,7 @@
         reader.readAsArrayBuffer(file);
         reader.onload = async () => {
           currentPlaylistKey = null;
+          currentPlaylistName = null;
           let data = reader.result.slice(0);
           let key = await addSong({name: file.name, data: data});
           loadSong(reader.result, file.name, key);
@@ -872,8 +874,7 @@
         playButton.disabled = false;
         restartButton.disabled = false;
         fileName = name;
-        if (key !== currentSongKey)
-          onSongChange.invoke(key);
+        onSongPlay.invoke(key);
         currentSongKey = key;
         document.title = name;
 
@@ -953,7 +954,6 @@
               emptyText.style.fontSize = "10pt";
               emptyText.style.padding = "5px";
               onPlaylistUpdate.addListener(emptyText, (targetPlaylistKey, newPlaylist) => {
-                console.log("test");
                 if (targetPlaylistKey === key)
                   emptyText.style.display = newPlaylist.songs.length === 0 ? "inline" : "none";
               })
@@ -1048,6 +1048,7 @@
             readWritePlaylists().delete(key);
             if (currentPlaylistKey === key) {
               currentPlaylistKey = null;
+              currentPlaylistName = null;
               currentQueue = null;
             }
             button.dropdown?.remove();
@@ -1107,9 +1108,9 @@
         return menu;
       }
 
-      function createSongButton(songName, songKey, playlistKey) {
+      function createSongButton(songName, songKey, playlistKey=null) {
         let songButton = document.createElement("button");
-        if (playlistKey !== undefined)
+        if (playlistKey === null)
           songButton.classList.add("dark-button");
         songButton.style.display = "flex";
         songButton.style.flex = "0 0 auto";
@@ -1151,21 +1152,31 @@
         }
 
         let nowPlaying = document.createElement("span");
-        nowPlaying.textContent = "(Playing)";
         if (currentSongKey === songKey) {
-          songButton.appendChild(nowPlaying);
-          songButton.disabled = true;
-        }
-        onSongChange.addListener(songButton, newSongKey => {
+          if (currentPlaylistKey === playlistKey) {
+            songButton.disabled = true;
+            nowPlaying.innerText = "(Playing)";
+          } else
+            nowPlaying.innerText = `(♫ from ${currentPlaylistName ?? "All Songs"})`;
+        } else 
+          nowPlaying.style.display = "none";
+        
+        onSongPlay.addListener(songButton, newSongKey => {
           if (newSongKey === songKey) {
-            songButton.appendChild(nowPlaying);
-            if (currentPlaylistKey === playlistKey)
+            nowPlaying.style.display = "inline";
+            if (currentPlaylistKey === playlistKey) {
               songButton.disabled = true;
+              nowPlaying.innerText = `(Playing)`;
+            } else {
+              songButton.disabled = false;
+              nowPlaying.innerText = `(♫ from ${currentPlaylistName ?? "All Songs"})`;
+            }
           } else {
-            nowPlaying.remove();
             songButton.disabled = false;
+            nowPlaying.style.display = "none"; 
           }
         });
+        songButton.appendChild(nowPlaying);
 
         songButton.oncontextmenu = event => {
           event.preventDefault();
@@ -1181,7 +1192,7 @@
             });
           }
 
-          if (playlistKey !== undefined) {
+          if (playlistKey !== null) {
             menu.addButton("Remove from playlist").onclick = () => {
               updatePlaylist(playlistKey, playlist => {
                 playlist.songs.splice(playlist.songs.indexOf(songKey), 1);
@@ -1218,32 +1229,29 @@
           if (event.pointerId == -1)
             return;
 
-          if (playlistKey === undefined) 
+          if (playlistKey === null) {
             currentPlaylistKey = null;
-          else {
+            currentPlaylistName = null;
+            currentQueue = [];
+          } else {
             let playlist = await getPlaylist(playlistKey);
             let currentIndex = playlist.songs.indexOf(songKey);
             currentQueue = playlist.songs.splice(currentIndex + 1);
-            console.log(playlistKey);
             currentPlaylistKey = playlistKey;
+            currentPlaylistName = playlist.name;
           } 
 
-          let song = await getSong(songKey);
+          if (songKey === currentSongKey)
+            onSongPlay.invoke(songKey) 
+          else {
+            let song = await getSong(songKey);
+            lyricsContainer.replaceChildren();
+            lyrics = song.lyrics ?? [];
+            lyrics.forEach(line => lyricsContainer.appendChild(createLyricLine(line.text)));
 
-          lyricsContainer.replaceChildren();
-          lyrics = song.lyrics ?? [];
-          lyrics.forEach(line => lyricsContainer.appendChild(createLyricLine(line.text)));
-          
-          if (lyrics.length > 0) {
-            let lyricsIcon = document.createElement("span");
-            lyricsIcon.textContent = "☴";
-            lyricsIcon.style.fontSize = "18px";
-            lyricsIcon.style.transform = "translateY(-0.5px)";
-            songButton.appendChild(lyricsIcon);
+            await loadSong(song.data, songName, songKey);
+            startPlaying();
           }
-
-          await loadSong(song.data, songName, songKey);
-          startPlaying();
         };
 
         return songButton;
