@@ -1110,7 +1110,7 @@
 
       function createSongButton(songName, songKey, playlistKey=null) {
         let songButton = document.createElement("button");
-        if (playlistKey === null)
+        if (playlistKey !== null)
           songButton.classList.add("dark-button");
         songButton.style.display = "flex";
         songButton.style.flex = "0 0 auto";
