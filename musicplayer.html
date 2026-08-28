@@ -100,6 +100,15 @@
     .dotted-button:hover {
       background-color: hsl(270, 20%, 35%); 
     }
+
+    @keyframes loading {
+      0% {
+        background-position: -450% 0;
+      }
+      100% {
+        background-position: 500% 0;
+      }
+    }
   </style>
   <body style="font-family: Menlo, monospace; font-size: 11pt; color: hsl(270, 20%, 85%); background-color: hsl(270, 20%, 16%)">
     <div style="display: flex; height: 100%">
@@ -119,6 +128,7 @@
           </div>
           <div id=waveform-scrollbar class=hide style="position: absolute; bottom: 0; height: 5px; background-color: rgb(255 255 255 / 35%)"></div>
           <div id=playhead-marker class=hide style="position: absolute; bottom: 0; width: 5px; height: 5px"></div>
+          <div id=loading-bar style="display: none; position: absolute; bottom: 0; width: 100%; height: 3px; background: no-repeat linear-gradient(hsl(270, 20%, 50%)); background-size: 80%; animation: loading 0.75s infinite"></div>
         </div>
 
         <div style="display: flex; flex-wrap: wrap; position: relative; width: 100%; margin: 10px 0 10px 0">
@@ -856,6 +866,7 @@
       }
 
       async function loadSong(data, name, key) {
+        document.getElementById("loading-bar").style.display = "inline";
         let audioBuffer = await audioContext.decodeAudioData(data);
 
         playButton.disabled = false;
@@ -887,6 +898,7 @@
         }
 
         calculateGroupedSamples();
+        document.getElementById("loading-bar").style.display = "none";
       }
 
       function showPlaylist(playlist, key) {
@@ -1147,7 +1159,8 @@
         onSongChange.addListener(songButton, newSongKey => {
           if (newSongKey === songKey) {
             songButton.appendChild(nowPlaying);
-            songButton.disabled = true;
+            if (currentPlaylistKey === playlistKey)
+              songButton.disabled = true;
           } else {
             nowPlaying.remove();
             songButton.disabled = false;
