@@ -877,11 +877,9 @@
         bufferSource.connect(pitchShifter);
 
         leftSamples = audioBuffer.getChannelData(0);
-        bufferSource.buffer.copyToChannel(leftSamples, 0);
 
         if (audioBuffer.numberOfChannels > 1) {
           rightSamples = audioBuffer.getChannelData(1);
-          bufferSource.buffer.copyToChannel(rightSamples, 1);
           samples = leftSamples.map((v, i) => v + rightSamples[i]);
         } else {
           rightSamples = null;
@@ -1510,14 +1508,14 @@
       
       let frequencyData = null;
       function animateFrequencyBars() {
-        let isSplittingChannels = rightSamples && document.getElementById("split-channels").checked
+        let isSplittingChannels = rightSamples && document.getElementById("split-channels").checked;
         let totalBins = isSplittingChannels ? numBins * 2 : numBins;
         if (frequencyData == null || frequencyData.length != totalBins) {
           frequencyData = new Float32Array(totalBins);
           frequencyData.fill(0);
         }
 
-        let startSampleIndex = Math.min(outputSampleIndex, samples.length) - numBins * 2;
+        let startSampleIndex = Math.min(outputSampleIndex, shiftedLeft.length) - numBins * 2;
 
         let leftTimeDomain = shiftedLeft.slice(startSampleIndex, outputSampleIndex);
         // if stereo audio but not splitting, add right time domain to left
