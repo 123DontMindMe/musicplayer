@@ -262,11 +262,13 @@
       let lyricProgressBar = document.getElementById("lyric-progress-bar");
       let queue = document.getElementById("queue");
       let allSongsContainer = document.getElementById("all-songs");
-      let allSongs = [];
+      let allSongs = {};
 
       // my pride and joy
       class GlobalEvent {
-        listeners = new Map();
+        elementsByKey = new Map();
+        listenersByElement = new Map();
+
         observer = new MutationObserver(mutations => {
           for (let mutation of mutations)
             if (mutation.type === "childList") {
@@ -275,25 +277,44 @@
                 continue;
               for (let removedNode of removedNodes)
                 if (removedNode instanceof Element) {
-                  this.listeners.delete(removedNode);
+                  this.removeListenerByElement(removedNode);
 
                   for (let child of removedNode.querySelectorAll("*"))
-                    this.listeners.delete(child);
+                    this.removeListenerByElement(child);
                 }
             }
         });
-        
+
         constructor(scope) {
           this.observer.observe(scope, { attributes: false, childList: true, subtree: true });
         }
         
-        addListener(element, listener) {
-          this.listeners.set(element, listener);
+        addListener(element, key, listener) {
+          let elementsWithKey = this.elementsByKey.get(key);
+          if (elementsWithKey === undefined)
+            this.elementsByKey.set(key, new Set([element]));
+          else
+            elementsWithKey.add(element);
+          this.listenersByElement.set(element, [listener, key]);
         }
 
-        invoke(...args) {
-          for (let [element, listener] of this.listeners)
+        removeListenerByElement(element) {
+          let listenerWithElement = this.listenersByElement.get(element);
+          if (listenerWithElement === undefined)
+            return;
+          let key = listenerWithElement[1];
+          this.elementsByKey.get(key).delete(element);
+          this.listenersByElement.delete(element);
+        }
+
+        invoke(key, ...args) {
+          let elementsWithKey = this.elementsByKey.get(key);
+          if (elementsWithKey === undefined)
+            return;
+          for (let element of elementsWithKey) {
+            let [listener, _] = this.listenersByElement.get(element);
             listener(...args);
+          }
         }
       }
 
@@ -308,6 +329,7 @@
       let onSongPlay = new GlobalEvent(queue);
       let onSongRename = new GlobalEvent(queue);
       let onSongDelete = new GlobalEvent(queue);
+      let onSongSaveLyrics = new GlobalEvent(queue);
       let onPlaylistUpdate = new GlobalEvent(queue);
 
       let stepWidth = 2;
@@ -543,7 +565,7 @@
 
         getAllSongs().then(entries => {
           for (let [key, value] of entries)
-            addNewSong(value.name, key);
+            addNewSong(value.name, key, (value.lyrics?.length > 0) ?? false);
         });
 
         getAllPlaylists().then(entries => {
@@ -863,7 +885,7 @@
           let data = reader.result.slice(0);
           let key = await addSong({name: file.name, data: data});
           loadSong(reader.result, file.name, key);
-          addNewSong(file.name, key);
+          addNewSong(file.name, key, false);
         };
       }
 
@@ -874,7 +896,7 @@
         playButton.disabled = false;
         restartButton.disabled = false;
         fileName = name;
-        onSongPlay.invoke(key);
+        onSongPlay.invoke(null, key);
         currentSongKey = key;
         document.title = name;
 
@@ -923,9 +945,8 @@
         let playlists = document.getElementById("playlists");
         playlists.insertBefore(button, document.getElementById("create-playlist"));
 
-        onPlaylistUpdate.addListener(title, (targetPlaylistKey, newPlaylist) => {
-          if (targetPlaylistKey === key)
-            numSongs.innerText = ` (${newPlaylist.songs.length})`;
+        onPlaylistUpdate.addListener(title, key, newPlaylist => {
+          numSongs.innerText = ` (${newPlaylist.songs.length})`;
         });
 
         button.onclick = async () => {
@@ -953,9 +974,8 @@
               emptyText.style.textAlign = "center";
               emptyText.style.fontSize = "10pt";
               emptyText.style.padding = "5px";
-              onPlaylistUpdate.addListener(emptyText, (targetPlaylistKey, newPlaylist) => {
-                if (targetPlaylistKey === key)
-                  emptyText.style.display = newPlaylist.songs.length === 0 ? "inline" : "none";
+              onPlaylistUpdate.addListener(emptyText, key, newPlaylist => {
+                emptyText.style.display = newPlaylist.songs.length === 0 ? "inline" : "none";
               })
               dropdown.appendChild(emptyText);
 
@@ -974,7 +994,7 @@
                 for (let i = 0; i < playlist.songs.length; i++) {
                   let songKey = playlist.songs[i];
                   getSong(songKey).then(song => { 
-                    buttons[i] = createSongButton(song.name, songKey, key);
+                    buttons[i] = createSongButton(song.name, songKey, (song.lyrics?.length > 0) ?? false, key);
                     numRemaining--;
                     if (numRemaining == 0) {
                       dropdown.append(...buttons);
@@ -1006,8 +1026,8 @@
         };
 
         button.ondrop = event => {
-          let songName = event.dataTransfer.getData("song-name");
           let songKey = parseInt(event.dataTransfer.getData("song-key"));
+          let song = allSongs[songKey];
 
           updatePlaylist(key, playlist => {
             if (!playlist.songs.includes(songKey)) {
@@ -1018,7 +1038,7 @@
                   button.dropdown.replaceChildren();
                   button.dropdown.isEmpty = false;
                 }
-                button.dropdown.appendChild(createSongButton(songName, songKey, key));
+                button.dropdown.appendChild(createSongButton(song.name, songKey, song.hasLyrics, key));
               }
 
               if (currentPlaylistKey === key)
@@ -1108,7 +1128,7 @@
         return menu;
       }
 
-      function createSongButton(songName, songKey, playlistKey=null) {
+      function createSongButton(songName, songKey, hasLyrics, playlistKey=null) {
         let songButton = document.createElement("button");
         if (playlistKey !== null)
           songButton.classList.add("dark-button");
@@ -1120,8 +1140,8 @@
         songButton.style.gap = "5px";
         songButton.draggable = true;
         songButton.ondragstart = event => {
-          event.dataTransfer.setData("song-name", songName);
-          event.dataTransfer.setData("song-key", songKey);
+          let song = allSongs[songKey];
+          event.dataTransfer.setData("song-key", song.key);
         };
 
         let title = document.createElement("span");
@@ -1133,23 +1153,23 @@
         title.style.textOverflow = "ellipsis";
         songButton.appendChild(title);
 
-        onSongRename.addListener(songButton, (targetSongKey, newName) => {
-          if (targetSongKey === songKey)
-            title.innerText = newName;
+        onSongRename.addListener(songButton, songKey, newName => {
+          title.innerText = newName;
         });
 
-        onSongDelete.addListener(songButton, (targetSongKey) => {
-          if (targetSongKey === songKey)
-            songButton.remove();
-        });
+        onSongDelete.addListener(songButton, songKey, songButton.remove);
 
-        if (lyrics.length > 0) {
-          let lyricsIcon = document.createElement("span");
-          lyricsIcon.textContent = "☴";
-          lyricsIcon.style.fontSize = "18px";
-          lyricsIcon.style.transform = "translateY(-0.5px)";
-          songButton.appendChild(lyricsIcon);
-        }
+        let lyricsIcon = document.createElement("span");
+        lyricsIcon.textContent = "☴";
+        lyricsIcon.style.fontSize = "18px";
+        lyricsIcon.style.transform = "translateY(-0.5px)";
+        if (!hasLyrics)
+          lyricsIcon.style.display = "none";
+        songButton.appendChild(lyricsIcon);
+
+        onSongSaveLyrics.addListener(lyricsIcon, songKey, hasLyrics => {
+          lyricsIcon.style.display = hasLyrics ? "inline" : "none";
+        });
 
         let nowPlaying = document.createElement("span");
         if (currentSongKey === songKey) {
@@ -1161,7 +1181,7 @@
         } else 
           nowPlaying.style.display = "none";
         
-        onSongPlay.addListener(songButton, newSongKey => {
+        onSongPlay.addListener(songButton, null, newSongKey => {
           if (newSongKey === songKey) {
             nowPlaying.style.display = "inline";
             if (currentPlaylistKey === playlistKey) {
@@ -1188,6 +1208,7 @@
                 song.name = newName;
                 return song;
               });
+              allSongs[songKey].name = newName;
               onSongRename.invoke(songKey, newName);
             });
           }
@@ -1242,7 +1263,7 @@
           } 
 
           if (songKey === currentSongKey)
-            onSongPlay.invoke(songKey) 
+            onSongPlay.invoke(null, songKey); 
           else {
             let song = await getSong(songKey);
             lyricsContainer.replaceChildren();
@@ -1257,9 +1278,9 @@
         return songButton;
       }
 
-      function addNewSong(name, key) {
-        allSongs.push({name: name, key: key, hasLyrics: false});
-        allSongsContainer.appendChild(createSongButton(name, key));
+      function addNewSong(name, key, hasLyrics) {
+        allSongs[key] = {name: name, key: key, hasLyrics: hasLyrics};
+        allSongsContainer.appendChild(createSongButton(name, key, hasLyrics));
       }
 
       function startPlaying(time = 0) {
@@ -1783,19 +1804,8 @@
           song.lyrics = lyrics;
           return song;
         });
-        if (lyrics.length == 0)
-            return;
-        let songIndex = allSongs.findIndex(s => s.key == currentSongKey);
-        let song = allSongs[songIndex];
-        if (!song.hasLyrics) {
-          song.hasLyrics = true;
-          let container = allSongsContainer.children[songIndex];
-          let lyricsIcon = document.createElement("span");
-          lyricsIcon.textContent = "☴";
-          lyricsIcon.style.fontSize = "18px";
-          lyricsIcon.style.transform = "translateY(-0.5px)";
-          container.appendChild(lyricsIcon);
-        }
+        allSongs[currentSongKey].hasLyrics = lyrics.length > 0;
+        onSongSaveLyrics.invoke(currentSongKey, lyrics.length > 0);
       });
 
       document.getElementById("export-lyrics").addEventListener("click", event => {
@@ -1860,10 +1870,10 @@
 
       document.getElementById("search-song").addEventListener("input", event => {
         let search = new RegExp(event.target.value, "i");
-        let matches = allSongs.filter(song => search.test(song.name));
+        let matches = Object.values(allSongs).filter(song => search.test(song.name));
         allSongsContainer.replaceChildren();
         for (let match of matches)
-          allSongsContainer.appendChild(createSongButton(match.name, match.key));
+          allSongsContainer.appendChild(createSongButton(match.name, match.key, match.hasLyrics));
       });
 
       document.getElementById("create-playlist").addEventListener("click", event => {
