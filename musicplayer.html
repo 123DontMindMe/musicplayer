@@ -1,3 +1,4 @@
+<!doctype html>
 <html>
   <style>
     .show {
@@ -356,8 +357,6 @@
 
       let numBins = 256;
       let smoothing = 0;
-
-      let audioContext = new AudioContext();
       
       let pitch = 1;
       let playbackRate = 1;
@@ -384,62 +383,67 @@
       let previousRightSynthesisPhases = new Float32Array(numFrequencies);
       previousRightSynthesisPhases.fill(0);
 
-      let pitchShifter = audioContext.createScriptProcessor(windowSize, 2, 2);
-      pitchShifter.addEventListener("audioprocess", event => {
-        if (!bufferSource)
-          return;
-        if (!didStartPlaying || pausedStartTimestamp != null)
-          return;
-        let shiftedLength = Math.ceil(samples.length / playbackRate);
-        if (shiftedLeft == null || shiftedLength > shiftedLeft.length) {
-          shiftedLeft = new Float32Array(shiftedLength);
-          shiftedLeft.fill(0);
-          shiftedRight = new Float32Array(shiftedLength);
-          shiftedRight.fill(0);
-        }
-        let output = event.outputBuffer;
-        let inputWindowSize = Math.ceil(windowSize * playbackRate);
-        let inputHopSize = Math.round(hopSize * playbackRate);
+      let audioContext = null;
+      let pitchShifter = null;
+      let gain = null;
 
-        for (let offset = 0; offset < 4; offset++) {
-          let inputWindowStart = inputSampleIndex + offset * inputHopSize;
-          let outputWindowStart = outputSampleIndex + offset * hopSize;
+      function createAudioContext() {
+        audioContext = new AudioContext();
+      
+        pitchShifter = audioContext.createScriptProcessor(windowSize, 2, 2);
+        pitchShifter.onaudioprocess = event => {
+          if (!bufferSource)
+            return;
+          if (!didStartPlaying || pausedStartTimestamp != null)
+            return;
+          let shiftedLength = Math.ceil(samples.length / playbackRate);
+          if (shiftedLeft == null || shiftedLength > shiftedLeft.length) {
+            shiftedLeft = new Float32Array(shiftedLength);
+            shiftedLeft.fill(0);
+            shiftedRight = new Float32Array(shiftedLength);
+            shiftedRight.fill(0);
+          }
+          let output = event.outputBuffer;
+          let inputWindowSize = Math.ceil(windowSize * playbackRate);
+          let inputHopSize = Math.round(hopSize * playbackRate);
 
-          let window = resample(leftSamples, inputWindowStart, inputWindowSize, windowSize);
-          hannWindowInPlace(window);
-          window = pitchShiftWindow(window, pitchScale, hopSize, previousLeftAnalysisPhases, previousLeftSynthesisPhases);
-          hannWindowInPlace(window);
-          for (let i = 0; i < windowSize; i++)
-            shiftedLeft[outputWindowStart + i] += window[i];
+          for (let offset = 0; offset < 4; offset++) {
+            let inputWindowStart = inputSampleIndex + offset * inputHopSize;
+            let outputWindowStart = outputSampleIndex + offset * hopSize;
 
-          if (rightSamples) {
-            window = resample(rightSamples, inputWindowStart, inputWindowSize, windowSize);
+            let window = resample(leftSamples, inputWindowStart, inputWindowSize, windowSize);
             hannWindowInPlace(window);
-            window = pitchShiftWindow(window, pitchScale, hopSize, previousRightAnalysisPhases, previousRightSynthesisPhases);
+            window = pitchShiftWindow(window, pitchScale, hopSize, previousLeftAnalysisPhases, previousLeftSynthesisPhases);
             hannWindowInPlace(window);
             for (let i = 0; i < windowSize; i++)
-              shiftedRight[outputWindowStart + i] += window[i];
+              shiftedLeft[outputWindowStart + i] += window[i];
+
+            if (rightSamples) {
+              window = resample(rightSamples, inputWindowStart, inputWindowSize, windowSize);
+              hannWindowInPlace(window);
+              window = pitchShiftWindow(window, pitchScale, hopSize, previousRightAnalysisPhases, previousRightSynthesisPhases);
+              hannWindowInPlace(window);
+              for (let i = 0; i < windowSize; i++)
+                shiftedRight[outputWindowStart + i] += window[i];
+            }
           }
-        }
-        let newLeft = shiftedLeft.slice(outputSampleIndex, outputSampleIndex + windowSize);
-        output.copyToChannel(newLeft, 0);
-        if (rightSamples)
-          output.copyToChannel(shiftedRight.slice(outputSampleIndex, outputSampleIndex + windowSize), 1);
-        else
-          output.copyToChannel(newLeft, 1);
-  
-        inputSampleIndex += inputWindowSize;
-        outputSampleIndex += windowSize;
-      });
+          let newLeft = shiftedLeft.slice(outputSampleIndex, outputSampleIndex + windowSize);
+          output.copyToChannel(newLeft, 0);
+          if (rightSamples)
+            output.copyToChannel(shiftedRight.slice(outputSampleIndex, outputSampleIndex + windowSize), 1);
+          else
+            output.copyToChannel(newLeft, 1);
+    
+          inputSampleIndex += inputWindowSize;
+          outputSampleIndex += windowSize;
+        };
 
-      let analyzer = audioContext.createAnalyser();
-      let gain = audioContext.createGain();
-      analyzer.fftSize = numBins * 2;
-      gain.gain.value = 0.1;
+        gain = audioContext.createGain();
+        gain.gain.value = 0.1;
 
-      pitchShifter.connect(analyzer);
-      analyzer.connect(gain);
-      gain.connect(audioContext.destination);
+        pitchShifter.connect(gain);
+        gain.connect(audioContext.destination);
+      }
 
       let lyrics = [];
       let isSyncingLyrics = true;
@@ -891,6 +895,8 @@
 
       async function loadSong(data, name, key) {
         document.getElementById("loading-bar").style.display = "inline";
+        if (!audioContext)
+          createAudioContext();
         let audioBuffer = await audioContext.decodeAudioData(data);
 
         playButton.disabled = false;
@@ -910,10 +916,10 @@
         bufferSource.buffer = audioBuffer;
         bufferSource.connect(pitchShifter);
 
-        leftSamples = audioBuffer.getChannelData(0);
+        leftSamples = audioBuffer.getChannelData(0).slice();  // copy is needed on Firefox for some reason?
 
         if (audioBuffer.numberOfChannels > 1) {
-          rightSamples = audioBuffer.getChannelData(1);
+          rightSamples = audioBuffer.getChannelData(1).slice();
           samples = leftSamples.map((v, i) => v + rightSamples[i]);
         } else {
           rightSamples = null;
@@ -1713,7 +1719,6 @@
       });
       document.getElementById("num-bins").addEventListener("input", event => {
         numBins = Math.pow(2, event.target.value);
-        analyzer.fftSize = numBins * 2;
         numBinsLabel.textContent = "# Frequency Bins: " + numBins;
       });
       document.getElementById("smoothing").addEventListener("input", event => {
