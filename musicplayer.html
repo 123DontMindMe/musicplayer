@@ -118,7 +118,7 @@
         
         <div style="flex: 0 0 auto; position: relative; overflow: hidden" class=panel>
           <!-- relative position on inner div makes everything inside scroll with it instead of outer div -->
-          <div style="position: relative; width: 100%; height: 200px; overflow-x: clip; scrollbar-width: none;">
+          <div id=waveform-container style="position: relative; width: 100%; height: 200px; overflow-x: clip; scrollbar-width: none">
             <canvas id=waveform width=6000 height=1000 style="position: relative; left: 0; width: 4000px; height: 100%; overflow-x: hidden;"></canvas>
             <p id=timer style="position: absolute; bottom: 0; transform: translate(5px)">
               <span id="timer-decimal" style="color: gray"></span>
@@ -179,8 +179,8 @@
           </div>
         </div>
 
-        <div style="display: flex; flex: 0 0 auto; position: relative; overflow: hidden; margin-bottom: 10px" class=panel>
-          <canvas id=bins width=2000 height=1000 style="position: relative; width: 100%; height: 200px"></canvas>
+        <div id=spectrum-panel style="flex: 0 0 200px; position: relative; overflow: hidden; margin-bottom: 10px" class=panel>
+          <canvas id=bins width=2000 height=1000 style="position: relative; width: 100%; height: 100%"></canvas>
           <p id=frequency-popup style="position: absolute; top: 50px; transform: translateX(-50%); text-wrap: nowrap;"></p>
 
           <div style="position: absolute; top: 0; width: calc(100% - 20px); display: flex; flex-direction: row-reverse; gap: 25px; padding: 10px">            
@@ -1281,28 +1281,6 @@
           }
         };
 
-        songButton.ondragover = event => {
-          if (!songButton.dragOverBar) {
-            let dragOverBar = document.createElement("div");
-            dragOverBar.style.width = "100%";
-            dragOverBar.style.height = "2px";
-            dragOverBar.style.backgroundColor = "white";
-            songButton.dragOverBar = dragOverBar;
-          }
-          let halfHeight = songButton.scrollHeight / 2;
-          if (event.offsetY > halfHeight && songButton.dragOverBarPosition !== "top") {
-            songButton.after(songButton.dragOverBar);
-            songButton.dragOverBarPosition = "top";
-          } else if (event.offsetY < halfHeight && songButton.dragOverBarPosition !== "bottom") {
-            songButton.before(songButton.dragOverBar);
-            songButton.dragOverBarPosition = "bottom";
-          }
-        };
-        songButton.ondragleave = songButton.ondrop = event => {
-          songButton.dragOverBar?.remove();
-          songButton.dragOverBar = null;
-        };
-
         return songButton;
       }
 
@@ -1383,7 +1361,7 @@
       }
 
       let skipTime = null;
-      function handleMouseDown(event) {
+      function handleWaveformMouseDown(event) {
         if (!bufferSource)
           return;
         let relativeMouseX = mouseX - getLeft(waveform);
@@ -1392,7 +1370,7 @@
         skipTime = Math.max(0, Math.min(skipTime, duration));
       }
 
-      function handleMouseUp(event) {
+      function handleWaveformMouseUp(event) {
         if (skipTime == null)
           return;
         if (didStartPlaying && pausedStartTimestamp == null)
@@ -1682,8 +1660,8 @@
       requestAnimationFrame(animate);
 
       addEventListener("resize", handleWindowResize);
-      addEventListener("mouseout", event => { mouseX = 0; mouseY = 0; })
-      addEventListener("mousemove", event => {
+      addEventListener("pointerout", event => { mouseX = 0; mouseY = 0; })
+      addEventListener("pointermove", event => {
         mouseX = event.pageX; 
         mouseY = event.pageY;
         if (skipTime == null)
@@ -1695,8 +1673,8 @@
         skipTime = (relativeMouseX + scroll) / steppedWaveformWidth * duration;
         skipTime = Math.max(0, Math.min(skipTime, duration));
       });
-      waveform.addEventListener("mousedown", handleMouseDown);
-      addEventListener("mouseup", handleMouseUp);
+      waveform.addEventListener("pointerdown", handleWaveformMouseDown);
+      addEventListener("pointerup", handleWaveformMouseUp);
       waveform.addEventListener("wheel", handleGesture, {passive: false});
 
       document.getElementById("file-input").addEventListener("input", event => handleFileInput(event.target.files[0]));
@@ -1789,6 +1767,7 @@
       function createLyricLine(text) {
         let newLine = document.createElement("input");
         newLine.style.width = "100%";
+        newLine.style.padding = "0";
         newLine.style.display = "block";
         newLine.style.fontFamily = "Menlo, monospace";
         newLine.style.color = "hsl(270, 20%, 85%)";
@@ -1908,6 +1887,48 @@
           let key = await addPlaylist({name: text, songs: []});
           showPlaylist({name: text, songs: []}, key);
         });
+      });
+
+      let waveformContainer = document.getElementById("waveform-container");
+      waveformContainer.dragOffsetY = null;
+      addEventListener("pointermove", event => {
+        if (event.offsetY > waveformContainer.scrollHeight - 10)
+          waveformContainer.style.cursor = "row-resize";
+        else
+          waveformContainer.style.cursor = "";
+
+        if (waveformContainer.dragOffsetY !== null)
+          waveformContainer.style.height = Math.max(mouseY - getTop(waveformContainer) + waveformContainer.dragOffsetY, 50) + "px";
+      });
+      waveformContainer.addEventListener("pointerdown", event => {
+        if (waveformContainer.style.cursor === "row-resize") {
+          waveformContainer.dragOffsetY = waveformContainer.scrollHeight - event.offsetY;
+          event.stopPropagation();
+        }
+      }, {capture: true});
+      addEventListener("pointerup", event => {
+        waveformContainer.dragOffsetY = null;
+      });
+
+      let spectrumPanel = document.getElementById("spectrum-panel");
+      spectrumPanel.dragOffsetY = null;
+      addEventListener("pointermove", event => {
+        if (event.offsetY > spectrumPanel.scrollHeight - 10)
+          spectrumPanel.style.cursor = "row-resize";
+        else
+          spectrumPanel.style.cursor = "";
+
+        if (spectrumPanel.dragOffsetY !== null)
+          spectrumPanel.style.flexBasis = Math.max(mouseY - getTop(spectrumPanel) + spectrumPanel.dragOffsetY, 100) + "px";
+      });
+      spectrumPanel.addEventListener("pointerdown", event => {
+        if (spectrumPanel.style.cursor === "row-resize") {
+          spectrumPanel.dragOffsetY = spectrumPanel.scrollHeight - event.offsetY;
+          event.stopPropagation();
+        }
+      }, {capture: true});
+      addEventListener("pointerup", event => {
+        spectrumPanel.dragOffsetY = null;
       });
     </script>
   </body>
