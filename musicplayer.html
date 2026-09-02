@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html style="padding: 8px; height: calc(100% - 16px)">
   <style>
     .show {
       opacity: 1;
@@ -111,7 +111,7 @@
       }
     }
   </style>
-  <body style="font-family: Menlo, monospace; font-size: 11pt; color: hsl(270, 20%, 85%); background-color: hsl(270, 20%, 16%)">
+  <body style="font-family: Menlo, monospace; font-size: 11pt; color: hsl(270, 20%, 85%); background-color: hsl(270, 20%, 16%); margin: 0; height: 100%">
     <div style="display: flex; height: 100%">
       <div style="display: flex; flex-direction: column; flex: 3; min-width: 0">
         <input id=file-input type=file accept="audio/*"/>
@@ -179,7 +179,7 @@
           </div>
         </div>
 
-        <div style="flex: 0 0 auto; position: relative; overflow: hidden; margin-bottom: 10px" class=panel>
+        <div style="display: flex; flex: 0 0 auto; position: relative; overflow: hidden; margin-bottom: 10px" class=panel>
           <canvas id=bins width=2000 height=1000 style="position: relative; width: 100%; height: 200px"></canvas>
           <p id=frequency-popup style="position: absolute; top: 50px; transform: translateX(-50%); text-wrap: nowrap;"></p>
 
@@ -1114,10 +1114,10 @@
         menu.appendChild(divider);
 
         menu.style.position = "absolute";
-        menu.style.top = mouseY - 17;
+        menu.style.top = (mouseY - 17) + "px";
 
         document.body.appendChild(menu);
-        menu.style.left = Math.min(mouseX - 20, document.body.clientWidth - menu.scrollWidth - 5);
+        menu.style.left = Math.min(mouseX - 20, document.body.clientWidth - menu.scrollWidth - 5) + "px";
         menu.focus();
         window.addEventListener("click", event => menu.remove());
 
@@ -1279,6 +1279,28 @@
             await loadSong(song.data, songName, songKey);
             startPlaying();
           }
+        };
+
+        songButton.ondragover = event => {
+          if (!songButton.dragOverBar) {
+            let dragOverBar = document.createElement("div");
+            dragOverBar.style.width = "100%";
+            dragOverBar.style.height = "2px";
+            dragOverBar.style.backgroundColor = "white";
+            songButton.dragOverBar = dragOverBar;
+          }
+          let halfHeight = songButton.scrollHeight / 2;
+          if (event.offsetY > halfHeight && songButton.dragOverBarPosition !== "top") {
+            songButton.after(songButton.dragOverBar);
+            songButton.dragOverBarPosition = "top";
+          } else if (event.offsetY < halfHeight && songButton.dragOverBarPosition !== "bottom") {
+            songButton.before(songButton.dragOverBar);
+            songButton.dragOverBarPosition = "bottom";
+          }
+        };
+        songButton.ondragleave = songButton.ondrop = event => {
+          songButton.dragOverBar?.remove();
+          songButton.dragOverBar = null;
         };
 
         return songButton;
